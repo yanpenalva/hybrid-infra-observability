@@ -21,7 +21,7 @@ jobs:
           echo "$RUNNER_TEMP/validators/bin" >> "$GITHUB_PATH"
       - name: Install pinned Ansible collections
         run: ansible-galaxy collection install -r requirements.yml
-      - name: Install pinned schema and monitoring validators
+      - name: Install pinned schema, monitoring and lint validators
         shell: bash
         run: |
           set -euo pipefail
@@ -40,6 +40,12 @@ jobs:
           cp "$work/alertmanager-0.28.1.linux-amd64/amtool" "$bin/"
           download https://github.com/gitleaks/gitleaks/releases/download/v8.24.0/gitleaks_8.24.0_linux_x64.tar.gz "$work/leaks.tgz"
           tar -xzf "$work/leaks.tgz" -C "$bin" gitleaks
+          download https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz "$work/shellcheck.txz"
+          tar -xJf "$work/shellcheck.txz" -C "$work"
+          cp "$work/shellcheck-v0.10.0/shellcheck" "$bin/"
+          download https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64 "$bin/hadolint"
+          download https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz "$work/actionlint.tgz"
+          tar -xzf "$work/actionlint.tgz" -C "$bin" actionlint
           chmod +x "$bin/"*
           echo "$bin" >> "$GITHUB_PATH"
       - name: YAML, Ansible lint and syntax, schemas, rules, config, secrets

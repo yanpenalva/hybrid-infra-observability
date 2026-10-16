@@ -1,8 +1,57 @@
 #!/usr/bin/env bash
+# Static gate. Stages: static (source hygiene, lint, unit and self tests), k8s
+# (rendered manifests against schemas), monitoring (rules and config), compose
+# (Compose config). The default runs every stage in that order; a single stage
+# name runs only that one, which is how scripts/verify.sh reuses this gate
+# without duplicating its logic. HIO_REQUIRE_TOOLS=1 turns a missing tool from
+# SKIP into FAIL; each stage ends with a machine-readable HIO STEP line.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 export PYTHONDONTWRITEBYTECODE=1
-python3 - <<'PY'
+
+step=${1:-all}
+case "$step" in
+  all | static | k8s | monitoring | compose) ;;
+  *)
+    echo "usage: scripts/check.sh [static|k8s|monitoring|compose|all]" >&2
+    exit 2
+    ;;
+esac
+
+skip_log=$(mktemp "${TMPDIR:-/tmp}/hio-check-skips.XXXXXX")
+trap 'rm -f -- "$skip_log"' EXIT
+
+note_skip() {
+  printf '%s\n' "$1" >>"$skip_log"
+}
+
+run_tool() {
+  local tool=$1
+  shift
+  if command -v "$tool" >/dev/null 2>&1; then
+    "$tool" "$@"
+  elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
+    echo "FAIL missing tool: $tool" >&2
+    return 1
+  else
+    note_skip "$tool"
+    echo "SKIP $tool: unavailable; install pinned CI version (not a validated gate)" >&2
+  fi
+}
+
+report_stage() {
+  local label=$1 unavailable
+  if [[ -s $skip_log ]]; then
+    unavailable=$(sort -u "$skip_log" | tr '\n' ',')
+    printf 'HIO STEP %s: SKIP (unavailable: %s)\n' "$label" "${unavailable%,}"
+  else
+    printf 'HIO STEP %s: PASS\n' "$label"
+  fi
+}
+
+stage_static() {
+  : >"$skip_log"
+  python3 - <<'PY'
 import ipaddress
 import pathlib
 import re
@@ -101,56 +150,104 @@ else:
     print('PASS synthetic credential rendering without value output')
 print('PASS YAML (PyYAML or Node YAML/JSON fallback), resources, source hygiene; ADRs deferred')
 PY
-for script in scripts/*.sh ansible/managed-node/*.sh; do bash -n "$script"; done
-python3 -B -m unittest discover -s ansible/app
-python3 -B ansible/control-node/ssh_metrics/collector.py --self-test
-python3 -B ansible/control-node/ssh_metrics/audit.py --self-test
-run_tool() {
-  local tool=$1
-  shift
-  if command -v "$tool" >/dev/null 2>&1; then
-    "$tool" "$@"
-  elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
-    echo "FAIL missing tool: $tool" >&2
-    return 1
+  for script in scripts/*.sh ansible/managed-node/*.sh; do
+    bash -n "$script"
+  done
+  python3 -B -m unittest discover -s ansible/app
+  python3 -B ansible/control-node/ssh_metrics/collector.py --self-test
+  python3 -B ansible/control-node/ssh_metrics/audit.py --self-test
+  mapfile -t yamls < <(find . -type f \( -name '*.yml' -o -name '*.yaml' -o -name '*.yml.example' \) \
+    -not -path './.local/*' -not -path './.git/*' -not -path '*/.validation/*' \
+    -not -path './ansible/control-node/vars/vault.yml')
+  run_tool yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' "${yamls[@]}"
+  run_tool ansible-lint ansible/control-node/playbooks/*.yml
+  for playbook in ansible/control-node/playbooks/*.yml; do
+    run_tool ansible-playbook -i ansible/control-node/inventory.ini --syntax-check "$playbook"
+  done
+  run_tool shellcheck scripts/*.sh ansible/managed-node/entrypoint.sh
+  mapfile -t dockerfiles < <(find . -type f -name Dockerfile -not -path './.git/*' -not -path './.local/*' | sort)
+  if ((${#dockerfiles[@]} > 0)); then
+    run_tool hadolint "${dockerfiles[@]}"
   else
-    echo "SKIP $tool: unavailable; install pinned CI version (not a validated gate)" >&2
+    note_skip 'hadolint (no Dockerfile found)'
+  fi
+  if compgen -G '.github/workflows/*.yml' >/dev/null; then
+    run_tool actionlint .github/workflows/*.yml
+  else
+    note_skip 'actionlint (no workflow found)'
+  fi
+  run_tool gitleaks dir --redact --no-banner .
+  if [[ -d .git || -f .git ]]; then
+    run_tool gitleaks git --redact --no-banner --log-opts=--all .
   fi
 }
-mapfile -t yamls < <(find . -type f \( -name '*.yml' -o -name '*.yaml' -o -name '*.yml.example' \) \
-  -not -path './.local/*' -not -path './.git/*' -not -path '*/.validation/*' \
-  -not -path './ansible/control-node/vars/vault.yml')
-run_tool yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' "${yamls[@]}"
-run_tool ansible-lint ansible/control-node/playbooks/*.yml
-for playbook in ansible/control-node/playbooks/*.yml; do
-  run_tool ansible-playbook -i ansible/control-node/inventory.ini --syntax-check "$playbook"
-done
-if command -v kubectl >/dev/null 2>&1 && command -v kubeconform >/dev/null 2>&1; then
-  kubectl kustomize k8s/monitoring | kubeconform -strict -summary -kubernetes-version 1.32.2
-elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
-  echo 'FAIL kubectl/kubeconform unavailable' >&2; exit 1
-else
-  echo 'SKIP kubectl/kubeconform: unavailable; no schema validation claimed' >&2
-fi
-(
-  cd k8s/monitoring
-  run_tool promtool check config prometheus.yml
-  run_tool promtool check rules alert-rules.yml
-  run_tool promtool check rules alert-rules-ssh.yml
-  run_tool promtool check rules demo-slo-overlay.yml
-  run_tool promtool test rules prometheus-rules.test.yml
-  run_tool promtool test rules alert-rules-ssh.test.yml
-  run_tool promtool test rules demo-slo-overlay.test.yml
-  run_tool amtool check-config alertmanager.yml
-)
-run_tool gitleaks dir --redact --no-banner .
-if [[ -d .git || -f .git ]]; then
-  run_tool gitleaks git --redact --no-banner --log-opts=--all .
-fi
-if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  HIO_METRICS_BIND=127.0.0.1 docker compose -f ansible/docker-compose.yml config --quiet
-elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
-  echo 'FAIL Docker Compose unavailable' >&2; exit 1
-else
-  echo 'SKIP Compose config: plugin unavailable' >&2
-fi
+
+stage_k8s() {
+  : >"$skip_log"
+  if command -v kubectl >/dev/null 2>&1 && command -v kubeconform >/dev/null 2>&1; then
+    kubectl kustomize k8s/monitoring | kubeconform -strict -summary -kubernetes-version 1.32.2
+  elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
+    echo 'FAIL kubectl/kubeconform unavailable' >&2
+    return 1
+  else
+    note_skip kubectl/kubeconform
+    echo 'SKIP kubectl/kubeconform: unavailable; no schema validation claimed' >&2
+  fi
+}
+
+stage_monitoring() {
+  : >"$skip_log"
+  (
+    cd k8s/monitoring
+    run_tool promtool check config prometheus.yml
+    run_tool promtool check rules alert-rules.yml
+    run_tool promtool check rules alert-rules-ssh.yml
+    run_tool promtool check rules demo-slo-overlay.yml
+    run_tool promtool test rules prometheus-rules.test.yml
+    run_tool promtool test rules alert-rules-ssh.test.yml
+    run_tool promtool test rules demo-slo-overlay.test.yml
+    run_tool amtool check-config alertmanager.yml
+  )
+}
+
+stage_compose() {
+  : >"$skip_log"
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    HIO_METRICS_BIND=127.0.0.1 docker compose -f ansible/docker-compose.yml config --quiet
+  elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
+    echo 'FAIL Docker Compose unavailable' >&2
+    return 1
+  else
+    note_skip 'docker compose'
+    echo 'SKIP Compose config: plugin unavailable' >&2
+  fi
+}
+
+case "$step" in
+  static)
+    stage_static
+    report_stage static
+    ;;
+  k8s)
+    stage_k8s
+    report_stage k8s
+    ;;
+  monitoring)
+    stage_monitoring
+    report_stage monitoring
+    ;;
+  compose)
+    stage_compose
+    report_stage compose
+    ;;
+  all)
+    stage_static
+    report_stage static
+    stage_k8s
+    report_stage k8s
+    stage_monitoring
+    report_stage monitoring
+    stage_compose
+    report_stage compose
+    ;;
+esac

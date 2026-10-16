@@ -1,4 +1,6 @@
 FROM debian:bookworm-slim
+# Apt versions are deliberately unpinned: pins break on Debian security updates; the lab rebuilds images on each run.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ansible openssh-client python3 \
     && rm -rf /var/lib/apt/lists/* \

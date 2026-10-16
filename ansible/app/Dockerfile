@@ -1,4 +1,6 @@
 FROM debian:bookworm-slim
+# Apt versions are deliberately unpinned: pins break on Debian security updates; the lab rebuilds images on each run.
+# hadolint ignore=DL3008
 RUN apt-get update && apt-get install -y --no-install-recommends \
     openssh-server python3 sudo supervisor prometheus-node-exporter stress-ng util-linux \
     && rm -rf /var/lib/apt/lists/* \
@@ -12,7 +14,7 @@ COPY managed-node/entrypoint.sh /usr/local/bin/hio-entrypoint
 COPY managed-node/supervisord.conf /etc/supervisor/supervisord.conf
 COPY app/app.py /opt/demo-app/app.py
 COPY app/supervisord-app.conf /etc/supervisor/conf.d/demo-app.conf
-RUN printf '\n[include]\nfiles = /etc/supervisor/conf.d/*.conf\n' >> /etc/supervisor/supervisord.conf
-RUN chmod 0755 /usr/local/bin/hio-entrypoint
+RUN printf '\n[include]\nfiles = /etc/supervisor/conf.d/*.conf\n' >> /etc/supervisor/supervisord.conf \
+    && chmod 0755 /usr/local/bin/hio-entrypoint
 EXPOSE 22 9100 8080
 ENTRYPOINT ["/usr/local/bin/hio-entrypoint"]
