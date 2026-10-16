@@ -22,6 +22,8 @@ jobs:
             PyYAML==6.0.2 yamllint==1.35.1 \
             ansible-core==2.18.3 ansible-lint==25.1.3
           echo "$RUNNER_TEMP/validators/bin" >> "$GITHUB_PATH"
+      - name: Install pinned Ansible collections
+        run: ansible-galaxy collection install -r requirements.yml
       - name: Install pinned schema and monitoring validators
         shell: bash
         run: |

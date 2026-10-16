@@ -1,25 +1,25 @@
-# 0001 — Exposição local
+# 0001 — Local exposure
 
-## Contexto
-Compose hospeda os nós geridos; Kubernetes hospeda a observabilidade. A topologia
-suportada é Linux, Docker Engine local e perfil Minikube dedicado
-`hybrid-infra-observability`, driver Docker. UIs não precisam de acesso pela LAN.
+## Context
+Compose hosts the managed nodes; Kubernetes hosts observability. The supported
+topology is Linux, a local Docker Engine and the dedicated Minikube profile
+`hybrid-infra-observability` with the Docker driver. The UIs need no LAN access.
 
-## Decisão
-Usar Services ClusterIP, substituindo NodePort, e port-forward com
-`--address 127.0.0.1`. Exporters e app precisam de uma interface de bridge
-explicitamente verificada e filtro de origem permitindo somente o Minikube.
-O nome de gateway do laboratório não constitui uma fronteira de segurança.
-`scripts/drill.sh` cria e encerra seus próprios forwards locais.
+## Decision
+Services are ClusterIP, replacing NodePort, reached by port-forward with
+`--address 127.0.0.1`. Exporters and the app need an explicitly verified bridge
+interface and an origin filter that admits only Minikube. The laboratory gateway
+name is not a security boundary. `scripts/drill.sh` creates and closes its own
+local forwards.
 
-## Limites
-Não há acesso público, TLS, autenticação própria, multi-driver ou HA.
-Bind em localhost dos exporters impediria o scrape pelos Pods; bind em todas
-as interfaces sem firewall não é uma alternativa aprovada. DNS não prova rota.
+## Limits
+No public access, TLS, own authentication, multi-driver or HA. A localhost bind
+on the exporters would block scraping by the Pods; an all-interface bind without
+a firewall is not an approved alternative. DNS does not prove a route.
 
-## Verificação
-`scripts/smoke.sh` exige contexto dedicado, Services ClusterIP e targets UP;
-`scripts/drill.sh` valida também o driver e `/health` da F1 no nó app.
-Teste positivo a partir de Pod e negativo a partir de origem proibida são gates
-de runtime, não comprovados pela análise dos manifests. Sem esses testes,
-exposição restrita continua pendente e publicação bloqueada.
+## Verification
+`scripts/smoke.sh` requires the dedicated context, ClusterIP Services and UP
+targets; `scripts/drill.sh` also validates the driver and the F1 `/health`
+endpoint on the `app` node. A positive test from a Pod and a negative test from a
+forbidden origin are runtime gates, not proven by manifest analysis. Without
+those tests, restricted exposure stays pending and publication stays blocked.

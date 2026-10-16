@@ -2,6 +2,10 @@
 - name: Apply disposable lab baseline
   hosts: all
   become: true
+  vars:
+    # Absolute source root: the template must resolve regardless of the
+    # controller working directory.
+    hardening_template_dir: "{{ playbook_dir }}/../templates"
   tasks:
     - name: Load locally generated encrypted fixtures
       ansible.builtin.include_vars:
@@ -70,7 +74,7 @@
         mode: '0700'
     - name: Deploy synthetic credentials with no business consumer
       ansible.builtin.template:
-        src: ../templates/credentials.env.j2
+        src: "{{ hardening_template_dir }}/credentials.env.j2"
         dest: /etc/security/vault/credentials.env
         owner: root
         group: root
@@ -84,5 +88,6 @@
         timeout: 30
   handlers:
     - name: Restart supervised sshd
-      ansible.builtin.command: supervisorctl restart sshd
-      changed_when: true
+      community.general.supervisorctl:
+        name: sshd
+        state: restarted

@@ -97,12 +97,12 @@
           }
     - name: Apply supervised timer
       ansible.builtin.meta: flush_handlers
-    - name: Verify supervised collector is running
-      ansible.builtin.command: supervisorctl status ssh_metrics
-      register: ssh_metrics_status
-      changed_when: false
-      failed_when: "'RUNNING' not in ssh_metrics_status.stdout"
+    - name: Ensure supervised collector is running
+      community.general.supervisorctl:
+        name: ssh_metrics
+        state: started
   handlers:
     - name: Reload supervised signals
-      ansible.builtin.shell: supervisorctl reread && supervisorctl update && supervisorctl restart ssh_metrics
-      changed_when: true
+      community.general.supervisorctl:
+        name: ssh_metrics
+        state: restarted

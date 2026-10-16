@@ -1,116 +1,117 @@
-# Controle → sinal → regra → drill → evidência
+# Control → signal → rule → drill → evidence
 
-Estado: implementação estática; **nenhuma evidência de runtime certificada**.
-IDs abaixo são os literais produzidos por `ansible/control-node/ssh_metrics/audit.py`.
-`pass`, `fail`, `error`, `exception` são estados distintos. Ausência nunca é PASS.
+State: static implementation; **no certified runtime evidence**.
+The IDs below are the literals produced by `ansible/control-node/ssh_metrics/audit.py`.
+`pass`, `fail`, `error` and `exception` are distinct states. Absence is never PASS.
 
-| ID estável | Controle/verificação | Sinal | Regra | Drill/recuperação | Evidência privada |
+| Stable ID | Control/verification | Signal | Rule | Drill/recovery | Private evidence |
 | --- | --- | --- | --- | --- | --- |
-| ssh_syntax | sshd -t | lab_hardening_control_pass | HardeningDrift | ssh; reaplicar baseline autorizado | audit.json |
-| ssh_effective | sshd -T -C para ansible/root: StrictModes, senha/root/interativo, X11 e MaxAuthtries | lab_hardening_control_pass; lab_ssh_auth_failures_total | HardeningDrift; SSHRejectedAttempts | ssh; política permanece ativa | audit.json; timeline.json |
-| ssh_dropin | 00-hio.conf root:root 0644 e conteúdo esperado | lab_hardening_control_pass | HardeningDrift | ssh; reaplicar baseline | audit.json |
-| ssh_key_modes | .ssh 0700 e authorized_keys 0600, dono ansible | lab_hardening_control_pass | HardeningDrift | ssh; corrigir metadados autorizadamente | audit.json |
-| secops | **removido do contrato no passe de fix (item 3)**: a conta privilegiada é derivada do Vault, não um literal `secops` | — | — | — | — |
-| shadow_mode | /etc/shadow root:shadow 0640; sem ler conteúdo | lab_hardening_control_pass | HardeningDrift | auditoria pré/pós drills | audit.json |
-| vault_directory | diretório root:root 0700, sem symlink | lab_hardening_control_pass | HardeningDrift | auditoria pré/pós drills | audit.json |
-| credentials_mode | arquivo root:root 0600, sem ler conteúdo/symlink | lab_hardening_control_pass | HardeningDrift | auditoria pré/pós drills | audit.json |
-| banner | **removido do contrato no passe de fix (item 3)**: o baseline não aplica Banner/issue.net | — | — | — | — |
-| logrotate | configuração existente e logrotate --debug válido | lab_hardening_control_pass | HardeningDrift | rotação real ainda pendente | audit.json |
-| app_identity | processo app.py não-root e NoNewPrivs=1 em app | lab_hardening_control_pass | HardeningDrift | /health antes/depois de cada drill | audit.json; timeline.json |
-| sudo_exception | concessão literal NOPASSWD:ALL da automação | lab_hardening_exception | nenhuma aprovação de compliance | não remover privilégio implicitamente | audit.json, estado exception |
-| AUDIT-FRESH | idade/ausência da coleta | lab_hardening_audit_timestamp_seconds | HardeningAuditStale | reiniciar coletor e repetir auditoria | audit.json |
-| SSH-PIPELINE | parser e timer supervisionado | lab_ssh_collector_timestamp_seconds; lab_ssh_collector_error; lab_ssh_collector_unmatched_total | SSHMetricsStale | ssh; restaurar timer/log | timeline.json |
-| NODE-UP | disponibilidade dos dois exporters | up | InstanceDown | instance-down; supervisorctl start node_exporter | timeline.json |
-| CPU-BOUNDED | um worker, 120s, cgroup ≤0,5 CPU e ≤128 PIDs | node_cpu_seconds_total | descoberta do nome literal pela API /rules, única regra usando essa métrica | cpu; encerrar apenas grupo do processo próprio | timeline.json |
+| ssh_syntax | sshd -t | lab_hardening_control_pass | HardeningDrift | ssh; reapply the authorized baseline | audit.json |
+| ssh_effective | sshd -T -C for ansible/root: StrictModes, password/root/interactive, X11 and MaxAuthTries | lab_hardening_control_pass; lab_ssh_auth_failures_total | HardeningDrift; SSHRejectedAttempts | ssh; policy stays active | audit.json; timeline.json |
+| ssh_dropin | 00-hio.conf root:root 0644 with the expected content | lab_hardening_control_pass | HardeningDrift | ssh; reapply the baseline | audit.json |
+| ssh_key_modes | .ssh 0700 and authorized_keys 0600, owned by ansible | lab_hardening_control_pass | HardeningDrift | ssh; correct the metadata under authorization | audit.json |
+| secops | **removed from the contract in the fix pass (item 3)**: the privileged account is derived from the Vault, not a literal `secops` | — | — | — | — |
+| shadow_mode | /etc/shadow root:shadow 0640; content never read | lab_hardening_control_pass | HardeningDrift | audit before and after drills | audit.json |
+| vault_directory | root:root 0700 directory, no symlink | lab_hardening_control_pass | HardeningDrift | audit before and after drills | audit.json |
+| credentials_mode | root:root 0600 file; content and symlink never read | lab_hardening_control_pass | HardeningDrift | audit before and after drills | audit.json |
+| banner | **removed from the contract in the fix pass (item 3)**: the baseline applies no Banner/issue.net | — | — | — | — |
+| logrotate | existing configuration and a valid logrotate --debug | lab_hardening_control_pass | HardeningDrift | actual rotation still pending | audit.json |
+| app_identity | app.py process non-root and NoNewPrivs=1 on app | lab_hardening_control_pass | HardeningDrift | /health before and after every drill | audit.json; timeline.json |
+| sudo_exception | literal NOPASSWD:ALL grant for the automation | lab_hardening_exception | no compliance approval | no implicit removal of the privilege | audit.json, `exception` state |
+| AUDIT-FRESH | age or absence of the collection | lab_hardening_audit_timestamp_seconds | HardeningAuditStale | restart the collector and repeat the audit | audit.json |
+| SSH-PIPELINE | parser and supervised timer | lab_ssh_collector_timestamp_seconds; lab_ssh_collector_error; lab_ssh_collector_unmatched_total | SSHMetricsStale | ssh; restore timer/log | timeline.json |
+| NODE-UP | availability of both exporters | up | InstanceDown | instance-down; supervisorctl start node_exporter | timeline.json |
+| CPU-BOUNDED | one worker, 120s, cgroup ≤0.5 CPU and ≤128 PIDs | node_cpu_seconds_total | discovery of the literal name through the /rules API, the only rule using that metric | cpu; terminate only the process group of the lab process | timeline.json |
 
-## Fontes e contratos de execução
+## Sources and execution contracts
 
-- Auditoria read-only: `ansible/control-node/playbooks/audit_hardening.yml` usa
-  raw/changed_when:false, sem staging de módulo no alvo, handlers ou correções.
-  Só escreve no controlador, por padrão `.local/evidence/<run>/audit.json`.
-  O mount do controlador Compose é read-only: fornecer
-  `-e audit_evidence_root=/tmp/hio-evidence -e audit_run=<run>` e copiar o JSON
-  sanitizado para `.local/evidence/<run>/audit.json`; o drill faz essa projeção
-  como `audit-baseline.json` e `audit-recovered.json`. Falha é registrada antes
-  do assert; alvos inacessíveis podem impedir relatório completo e dão erro.
-- Deployment: `ansible/control-node/playbooks/deploy_ssh_metrics.yml` instala
-  `ansible/control-node/ssh_metrics/collector.py` e o probe read-only.
-  Timer de 5s pertence ao supervisor, não systemd. O deployment é mutante;
-  não é o playbook de auditoria. Publica textfile atomicamente em diretório
-  root-owned, legível pelo exporter; estado/log ficam privados. É invocado por
-  `make up` logo após `security_hardening`; `scripts/smoke.sh` e
-  `scripts/drill.sh` fazem preflight de `supervisorctl status ssh_metrics` e
-  falham cedo, com mensagem explícita, se o timer não estiver RUNNING.
-- Regras F2/F3: `k8s/monitoring/alert-rules-ssh.yml`; disponibilidade:
-  `k8s/monitoring/alert-rules.yml`. O builder da monitoração deve montar/carregar
-  o primeiro nome literal. Criar o arquivo não prova que Prometheus o carrega.
-  Testes promtool: `prometheus-rules.test.yml` (canônicas),
-  `alert-rules-ssh.test.yml` (limiar SSH cruzado/não cruzado, drift ==0,
-  staleness por timestamp velho e por série ausente) e
-  `demo-slo-overlay.test.yml`; `scripts/check.sh` roda `check rules`/`test rules`
-  dos três arquivos.
-- Prova F4: `k8s/monitoring/demo-slo-overlay.yml` é um overlay local de janelas
-  curtas (1m) do burn-rate, com guarda de 0.1 req/s, validado por promtool mas
-  fora do ConfigMap canônico. `scripts/smoke.sh` injeta 503 via `POST /chaos`
-  em loopback dentro de app, confere o contador 5xx e o burn curto em firing, e
-  remove o overlay em `finally`/trap (re-aplica `k8s/monitoring` e reinicia o
-  Prometheus), de modo que o estado canônico volta mesmo em falha.
-- Drills: `scripts/drill.sh instance-down|cpu|ssh`. API F1 `/health` em
-  `127.0.0.1:8080` dentro de app; APIs Prometheus/Alertmanager via forwards
-  próprios em loopback. Sem silences, scans externos, password guessing ou
-  dependência de dedup. SSH oferece exatamente seis chaves rejeitadas e exige
-  delta seis, agregando somente motivos enumerados, nunca IP/usuário/chave.
-- `collector.py --self-test` cobre mensagens duplicadas da mesma tentativa,
-  linhas parciais, restart, rename/rotação e truncamento. Unidade: um registro
-  OpenSSH `Failed <method>`, não `Invalid user` ou fechamento preauth.
-  Reinício preserva contadores; recriação pode resetá-los; consultas usam increase.
-  Retenção limitada pode perder eventos se coletor ficar parado além de duas
-  rotações; truncamento com recrescimento acima do cursor entre polls é limite
-  conhecido. Não usar copytruncate; rotação por rename reabre logs do supervisor.
+- Read-only audit: `ansible/control-node/playbooks/audit_hardening.yml` uses
+  raw/changed_when:false, with no module staging on the target, no handlers and no
+  fixes. It writes only on the controller, by default to
+  `.local/evidence/<run>/audit.json`. The Compose controller mount is read-only:
+  supply `-e audit_evidence_root=/tmp/hio-evidence -e audit_run=<run>` and copy the
+  sanitized JSON to `.local/evidence/<run>/audit.json`; the drill projects it as
+  `audit-baseline.json` and `audit-recovered.json`. A failure is recorded before
+  the assert; unreachable targets may prevent a complete report and return an error.
+- Deployment: `ansible/control-node/playbooks/deploy_ssh_metrics.yml` installs
+  `ansible/control-node/ssh_metrics/collector.py` and the read-only probe.
+  The 5s timer belongs to supervisor, not systemd. The deployment is mutating; it is
+  not the audit playbook. It publishes the textfile atomically into a root-owned
+  directory readable by the exporter; state/log stay private. It is invoked by
+  `make up` right after `security_hardening`; `scripts/smoke.sh` and
+  `scripts/drill.sh` preflight `supervisorctl status ssh_metrics` and fail early,
+  with an explicit message, when the timer is not RUNNING.
+- F2/F3 rules: `k8s/monitoring/alert-rules-ssh.yml`; availability:
+  `k8s/monitoring/alert-rules.yml`. The monitoring builder mounts/loads the first
+  literal name. Creating the file does not prove that Prometheus loads it.
+  promtool tests: `prometheus-rules.test.yml` (canonical),
+  `alert-rules-ssh.test.yml` (SSH threshold crossed/not crossed, drift ==0,
+  staleness through an old timestamp and through an absent series) and
+  `demo-slo-overlay.test.yml`; `scripts/check.sh` runs `check rules`/`test rules`
+  for all three files.
+- F4 proof: `k8s/monitoring/demo-slo-overlay.yml` is a local overlay of short (1m)
+  burn-rate windows with a 0.1 req/s guard, validated by promtool but outside the
+  canonical ConfigMap. `scripts/smoke.sh` injects 503 through `POST /chaos` on
+  loopback inside app, checks the 5xx counter and the short burn rule in firing,
+  and removes the overlay in `finally`/trap (re-applies `k8s/monitoring` and
+  restarts Prometheus), so the canonical state returns even on failure.
+- Drills: `scripts/drill.sh instance-down|cpu|ssh`. F1 `/health` API on
+  `127.0.0.1:8080` inside app; Prometheus/Alertmanager APIs through their own
+  loopback forwards. No silences, external scans, password guessing or dependency
+  on dedup. SSH offers exactly six rejected keys and requires a delta of six,
+  aggregating only enumerated reasons, never IP/user/key.
+- `collector.py --self-test` covers duplicated messages of the same attempt,
+  partial lines, restart, rename/rotation and truncation. Unit: one OpenSSH
+  `Failed <method>` record, not `Invalid user` or preauth close.
+  Restart preserves counters; recreation may reset them; queries use increase.
+  Bounded retention may lose events when the collector stays down beyond two
+  rotations; truncation that regrows above the cursor between polls is a known
+  limit. copytruncate is not used; rename rotation reopens supervisor logs.
 
-## Escopo do probe após o passe de fix (item 3)
+## Probe scope after the fix pass (item 3)
 
-Decisão registrada (caminho menor, sem tocar o baseline): o probe read-only foi
-reescopado aos controles que o baseline disposable de fato implementa.
+Recorded decision (smaller path, without touching the baseline): the read-only probe
+was rescoped to the controls that the disposable baseline actually implements.
 
-- `secops` saiu do contrato. A conta privilegiada do baseline é `lab_admin`,
-  derivada do Vault (`vault_security_admin_user`), criada por
-  `security_hardening.yml`; um probe read-only sem acesso ao Vault não pode
-  resolver esse nome, e criar um literal `secops` só para satisfazer a auditoria
-  seria conformidade fabricada.
-- `banner` saiu do contrato. Nem `ansible/managed-node/entrypoint.sh` nem
-  `security_hardening.yml` aplicam `Banner`/`/etc/issue.net`.
-- `ssh_effective` verifica apenas `ansible` e `root`.
-- Reabrir qualquer um dos dois exige mudar o baseline (drop-in de Banner e
-  conta dedicada) e esta matriz; o `--self-test` do probe falha se o conjunto de
-  IDs mudar sem atualização aqui.
-- O único estado `exception` aceito é `sudo_exception`. `scripts/drill.sh`
-  exige `pass` nos demais controles na auditoria de baseline e na de recuperação.
+- `secops` left the contract. The baseline privileged account is `lab_admin`,
+  derived from the Vault (`vault_security_admin_user`) and created by
+  `security_hardening.yml`; a read-only probe without Vault access cannot resolve
+  that name, and creating a literal `secops` only to satisfy the audit would be
+  fabricated compliance.
+- `banner` left the contract. Neither `ansible/managed-node/entrypoint.sh` nor
+  `security_hardening.yml` applies `Banner`/`/etc/issue.net`.
+- `ssh_effective` verifies only `ansible` and `root`.
+- Reopening either one requires changing the baseline (Banner drop-in and a
+  dedicated account) and this matrix; the probe `--self-test` fails when the set of
+  IDs changes without an update here.
+- The only accepted `exception` state is `sudo_exception`. `scripts/drill.sh`
+  requires `pass` on the other controls in both the baseline and the recovery audit.
 
-## Gates ainda não comprovados / fronteiras da partição
+## Gates not yet proven / partition boundaries
 
-O probe cobre somente os controles listados acima e nunca fabrica conformidade:
-ausência de série é ausência, não PASS. Alterações no baseline, app, compose,
-smoke, CI e wiring Kubernetes pertencem a outros builders.
-CPU não é automaticamente métrica do cgroup: sem cruzamento real seguro da
-regra o drill falha; não aumenta workers nem reduz limiar canônico. A regra CPU
-de F4 deve existir antes do drill; seu nome não é inventado nesta matriz.
-O overlay de SLO curto e o passo de injeção 503 em `scripts/smoke.sh` estão
-implementados e validados por promtool, mas seguem sem execução certificada:
-nenhuma medição de runtime foi fabricada.
+The probe covers only the controls listed above and never fabricates compliance:
+an absent series is absence, not PASS. Changes to the baseline, app, compose, smoke,
+CI and Kubernetes wiring belong to other builders.
+CPU is not automatically a cgroup metric: without a safe real crossing of the rule
+the drill fails; it adds no workers and does not lower the canonical threshold. The
+F4 CPU rule is expected before the drill; its name is not invented in this matrix.
+The short SLO overlay and the 503 injection step in `scripts/smoke.sh` are
+implemented and validated by promtool, but still run without certified execution:
+no runtime measurement was fabricated.
 
-Known_hosts/host checking são configurados em
-`ansible/control-node/ansible.cfg`; o drill SSH usa verificação estrita e exige
-rejeição publickey (host key divergente não conta). Teste negativo de host key,
-sentinelas de segredo, rotação real, ausência de séries, interrupção dos drills,
-política de rede positiva/negativa, retenção e recursos efetivos precisam de
-execução integrada. Não são substituídos por checks de existência de arquivos.
-`scripts/check.sh` valida YAML, Bash, higiene, os testes de unidade de
-`ansible/app`, os dois `--self-test` (`collector.py`, `audit.py`) e os três
-arquivos de teste promtool (regras canônicas, SSH e overlay de demo).
+Known_hosts/host checking are configured in `ansible/control-node/ansible.cfg`; the
+SSH drill uses strict verification and requires a publickey rejection (a diverging
+host key does not count). Host key negative testing, secret sentinels, actual
+rotation, absent series, drill interruption, positive/negative network policy,
+retention and effective resources need integrated execution. They are not replaced
+by file-existence checks.
+`scripts/check.sh` validates YAML, Bash, hygiene, the unit tests of `ansible/app`,
+both `--self-test` runs (`collector.py`, `audit.py`) and the three promtool test
+files (canonical, SSH and demo-overlay rules).
 
-Decisões: `docs/adr/0001-local-exposure.md`,
+Decisions: `docs/adr/0001-local-exposure.md`,
 `docs/adr/0002-single-node-storage.md`, `docs/adr/0003-alert-routing.md`.
-Verificações existentes adicionais: `scripts/smoke.sh` (recursos/retencão/rota),
-`scripts/check.sh` (segredos sintéticos e estática). Logrotate configurado não
-é prova de rotação executada; receiver blackhole não é entrega externa.
+Additional existing verifications: `scripts/smoke.sh`
+(resources/retention/route), `scripts/check.sh` (synthetic secrets and static
+checks). A configured logrotate is not proof of executed rotation; a blackhole
+receiver is not external delivery.

@@ -1,0 +1,7 @@
+---
+# Pinned Ansible collection dependencies for ansible/control-node/playbooks.
+# Installed by .github/workflows/ci.yml before the static gate and resolvable by
+# ansible-lint from this file.
+collections:
+  - name: community.general
+    version: "==13.5.0"

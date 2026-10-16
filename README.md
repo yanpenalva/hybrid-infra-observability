@@ -80,9 +80,6 @@ explicit source paths, never a blanket copy of the repository context.
 - Fresh local material does not revoke previously exposed credentials elsewhere.
   Revocation confirmation and final content/history/package review block release.
 
-## Resumo PT-BR
+## License
 
-Laboratório pessoal local de Compose/Ansible + Kubernetes, ainda na onda 1.
-A tese é fechar o loop controle → sinal → alerta → diagnóstico → recuperação.
-Não há prova de runtime, promessa de produção nem autorização de publicação.
-Consulte os stubs em `docs/`; MIT, copyright 2026 Yan Penalva.
+MIT; see `LICENSE`.

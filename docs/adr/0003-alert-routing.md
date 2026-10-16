@@ -1,27 +1,29 @@
-# 0003 — Alertmanager stateless e recebimento sem entrega
+# 0003 — Alertmanager stateless, receipt without delivery
 
-## Contexto
-O objetivo é demonstrar sinal, alerta e recuperação, não integrar serviços
-externos. Persistir estado de notificação acrescentaria operação fora do escopo.
+## Context
+The objective is to demonstrate signal, alert and recovery, not to integrate
+external services. Persisting notification state would add operations outside the
+scope.
 
-## Decisão
-Alertmanager roda **stateless, sem PVC**, com receiver `blackhole` em
-`k8s/monitoring/alertmanager.yml`. A API comprova recebimento e roteamento,
-não entrega de notificação externa. Drills não criam silences e não dependem
-de dedup entre execuções: cada execução observa baseline, injeção, sinal,
-pending, firing, recebimento, recuperação e resolução novamente.
+## Decision
+Alertmanager runs **stateless, without a PVC**, with the `blackhole` receiver in
+`k8s/monitoring/alertmanager.yml`. The API proves receipt and routing, not
+external notification delivery. Drills create no silences and do not depend on
+dedup between runs: each run observes baseline, injection, signal, pending,
+firing, receipt, recovery and resolution again.
 
-## Limites
-Silences e nflog são perdidos em cada restart; deduplicação reinicia e pode
-haver re-notificação. Isso é esperado, não perda de idempotência do drill.
-Sem Slack, e-mail, PagerDuty ou garantia de entrega. Silences/inibições
-preexistentes que impeçam a observação tornam o drill FAIL, nunca PASS.
+## Limits
+Silences and nflog are lost on every restart; deduplication restarts and
+re-notification is possible. That is expected, not a loss of drill idempotence.
+No Slack, e-mail or PagerDuty integration; receipt is not external delivery.
+Pre-existing silences or inhibitions that block observation make the drill FAIL,
+never PASS.
 
-## Verificação
-`scripts/drill.sh` rejeita alertas ativos antigos, exige labels do nó `app`,
-`activeAt`/`startsAt` novos e grupo recebido pelo receiver `blackhole`.
-Exige pending e firing distintos e ausência ativa nas duas APIs após recuperar.
-Timeline privada em `.local/evidence/<run>/timeline.json`, com UTC e relógio
-monotônico. Deadline ou limpeza incompleta resulta em exit não zero.
-Reinício do Alertmanager deve ser testado em runtime sem depender de silences
-ou nflog anteriores; não foi certificado apenas pela criação deste ADR.
+## Verification
+`scripts/drill.sh` rejects old active alerts, requires `app` node labels, new
+`activeAt`/`startsAt` and a group received by the `blackhole` receiver. Distinct
+pending and firing states are required, with no active alerts in either API after
+recovery. Private timeline in `.local/evidence/<run>/timeline.json`, UTC and
+monotonic clock. A deadline or incomplete cleanup results in a non-zero exit.
+Alertmanager restart is exercised at runtime without depending on earlier
+silences or nflog; this ADR alone did not certify it.

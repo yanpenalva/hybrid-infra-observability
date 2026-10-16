@@ -1,13 +1,13 @@
 # Troubleshooting (machine run)
 
 Fail-closed by design: every gate below exits non-zero instead of passing
-silently. Match your symptom, fix, re-run the same command.
+silently. Match the symptom below, apply the fix and re-run the same command.
 
 ## `make up` refuses on `HIO_METRICS_BIND`
 
 `HIO_METRICS_BIND` must be the bridge address reachable FROM Minikube pods
 (never `0.0.0.0`/`::` — refused on purpose). Find it with
-`ip -4 addr show docker0` (or your Minikube network) and export it, e.g.
+`ip -4 addr show docker0` (or the Minikube network interface) and export it, e.g.
 `export HIO_METRICS_BIND=192.168.49.1`. Re-run `make up`.
 
 ## `make monitoring` context mismatch

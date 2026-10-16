@@ -1,16 +1,12 @@
 ---
+# Two plays by design: the managed play only collects sanitized per-node facts,
+# and the controller play (localhost) owns every write, so evidence is saved
+# once and a failed control still leaves a report before the run fails closed.
 - name: Observe hardening without changing managed nodes
   hosts: all
   gather_facts: false
   become: true
-  vars:
-    audit_evidence_root: "{{ playbook_dir }}/../../../..//.local/evidence"
-    audit_run: "{{ lookup('pipe', 'date -u +%Y%m%dT%H%M%S') }}"
   tasks:
-    - name: Freeze the evidence run identifier
-      ansible.builtin.set_fact:
-        audit_run_id: "{{ audit_run }}"
-      run_once: true
     - name: Read metadata and effective policy without remote module staging
       ansible.builtin.raw: "python3 -B -c {{ lookup('file', '../ssh_metrics/audit.py') | quote }}"
       register: hardening_probe
@@ -21,35 +17,52 @@
       diff: false
     - name: Keep only sanitized control results
       ansible.builtin.set_fact:
-        hardening_report: "{{ hardening_probe.stdout | trim | from_json if hardening_probe.rc == 0 else {'schema_version': 1, 'node': inventory_hostname, 'controls': {'probe': 'error'}} }}"
+        hardening_report: >-
+          {{ hardening_probe.stdout | trim | from_json if hardening_probe.rc == 0
+          else {'schema_version': 1, 'node': inventory_hostname,
+          'controls': {'probe': 'error'}} }}
       no_log: true
       diff: false
+
+- name: Save sanitized evidence on the controller and fail closed
+  hosts: localhost
+  gather_facts: false
+  become: false
+  vars:
+    audit_evidence_root: "{{ playbook_dir }}/../../../..//.local/evidence"
+    audit_run: "{{ lookup('pipe', 'date -u +%Y%m%dT%H%M%S') }}"
+    audit_node_reports: >-
+      {{ groups['all'] | map('extract', hostvars, 'hardening_report') | select('defined') | list }}
+  tasks:
+    - name: Freeze the evidence run identifier
+      ansible.builtin.set_fact:
+        audit_run_id: "{{ audit_run }}"
     - name: Create private evidence directory only on controller
       ansible.builtin.file:
         path: "{{ audit_evidence_root }}/{{ audit_run_id }}"
         state: directory
         mode: '0700'
-      delegate_to: localhost
-      become: false
-      run_once: true
       check_mode: false
     - name: Write aggregate report only on controller
       ansible.builtin.copy:
         dest: "{{ audit_evidence_root }}/{{ audit_run_id }}/audit.json"
         content: >-
           {{ {'schema_version': 1, 'timestamp': lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ'),
-              'nodes': ansible_play_hosts_all | map('extract', hostvars, 'hardening_report') | list,
+              'nodes': audit_node_reports,
               'exception': 'NOPASSWD:ALL is a didactic automation exception, not compliance'} | to_nice_json }}
         mode: '0600'
-      delegate_to: localhost
-      become: false
-      run_once: true
       check_mode: false
       no_log: true
       diff: false
     - name: Fail closed after saving evidence
       ansible.builtin.assert:
         that:
-          - "'fail' not in hardening_report.controls.values()"
-          - "'error' not in hardening_report.controls.values()"
+          - groups['all'] | length > 0
+          - audit_node_reports | length == groups['all'] | length
+          - "'fail' not in audit_control_states"
+          - "'error' not in audit_control_states"
         quiet: true
+      vars:
+        audit_control_states: >-
+          {{ audit_node_reports | map(attribute='controls') | map('dict2items')
+          | flatten | map(attribute='value') | list }}
