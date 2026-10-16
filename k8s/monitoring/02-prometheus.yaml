@@ -46,7 +46,7 @@ spec:
       automountServiceAccountToken: false
       initContainers:
         - name: data-owner
-          image: busybox:1.37.0
+          image: busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e
           command: [sh, -ec, 'chown 65534:65534 /prometheus']
           resources:
             requests: {cpu: 10m, memory: 16Mi}
@@ -62,7 +62,7 @@ spec:
               mountPath: /prometheus
       containers:
         - name: prometheus
-          image: prom/prometheus:v3.2.1
+          image: prom/prometheus:v3.2.1@sha256:6927e0919a144aa7616fd0137d4816816d42f6b816de3af269ab065250859a62
           args:
             - --config.file=/etc/prometheus/prometheus.yml
             - --storage.tsdb.path=/prometheus
