@@ -18,8 +18,9 @@ below to verify another machine or checkout.
 - Linux with Docker Engine and the Compose plugin, plus a dedicated single-node
   Minikube profile/context named `hybrid-infra-observability` (Docker driver).
 - `kubectl`, `python3` with PyYAML, `promtool`, `amtool`, and the pinned
-  `yamllint`, `ansible-lint`, `kubeconform`, `gitleaks` versions from
-  `.github/workflows/ci.yml`. Use `HIO_REQUIRE_TOOLS=1` so absence fails.
+  `yamllint`, `ansible-lint`, `kubeconform`, `gitleaks`, `shellcheck`,
+  `hadolint` and `actionlint` versions from `.github/workflows/ci.yml`. Use
+  `HIO_REQUIRE_TOOLS=1` so absence fails.
 - `HIO_METRICS_BIND` set to the verified bridge address reachable from Pods, and
   the lab-only DNS name `metrics-gateway.hio.test` resolving to it. The default
   `docker0` address may differ from the dedicated profile's gateway.
@@ -62,12 +63,21 @@ whose default Python is 3.14, create the validator venv with Python 3.11.
    both collector/audit self-tests, promtool tests for canonical, SSH and demo
    rules, `amtool`, `kubeconform`, `gitleaks` and Compose config. Zero SKIPs are
    required for a full local gate; `yamllint` warnings do not fail by default.
+   Shell, Dockerfile and workflow linting belongs to the same gate:
+   `shellcheck` covers `scripts/*.sh` and `ansible/managed-node/entrypoint.sh`,
+   `hadolint` every `Dockerfile`, `actionlint` the workflows. `make verify` runs
+   the gate as ordered stages — init idempotency, static, Compose config,
+   kustomize build plus kubeconform, promtool/amtool — and prints one
+   PASS/SKIP/FAIL line per stage; a SKIP stage means that tool is absent
+   locally, not that the tree is green, and any FAIL exits non-zero.
 3. `make up` twice — Compose builds app/db/control-node and then runs, in this order:
    `ping`, `install_node_exporter`, `security_hardening`, `deploy_ssh_metrics`.
    The last playbook is what makes the signal real: it installs the
    supervisor-owned 5 s collector/audit timer, the textfile exporter directory,
    the private SSH log rotation and the read-only probe. Re-running it is
-   idempotent. Confirm `ssh_metrics` with
+   idempotent. The images build from a `debian:bookworm-slim` pinned by digest,
+   so a rebuild resolves to the same base bytes (`docs/image-bump.md`). Confirm
+   `ssh_metrics` with
    `docker compose -f ansible/docker-compose.yml exec -T app supervisorctl status ssh_metrics`;
    it must print `RUNNING`. The second run checks convergence.
 4. `make monitoring` — applies the ClusterIP stack (namespace, Prometheus,
