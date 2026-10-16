@@ -123,8 +123,11 @@ run_tool() {
     echo "SKIP $tool: unavailable; install pinned CI version (not a validated gate)" >&2
   fi
 }
+# yamllint: skip the generated ansible-vault file — it is encrypted output,
+# not YAML text (the Python scan above also skips generated files post-init).
 mapfile -t yamls < <(find . -type f \( -name '*.yml' -o -name '*.yaml' -o -name '*.yml.example' \) \
-  -not -path './.local/*' -not -path './.git/*' -not -path '*/.validation/*')
+  -not -path './.local/*' -not -path './.git/*' -not -path '*/.validation/*' \
+  -not -path './ansible/control-node/vars/vault.yml')
 run_tool yamllint -d '{extends: default, rules: {line-length: disable, truthy: disable}}' "${yamls[@]}"
 run_tool ansible-lint ansible/control-node/playbooks/*.yml
 for playbook in ansible/control-node/playbooks/*.yml; do
