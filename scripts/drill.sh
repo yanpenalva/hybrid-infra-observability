@@ -15,15 +15,17 @@ import urllib.parse
 import urllib.request
 import uuid
 
-if len(sys.argv) != 2 or sys.argv[1] not in ('instance-down', 'cpu', 'ssh'):
-    sys.exit('usage: scripts/drill.sh instance-down|cpu|ssh')
+kinds = ('instance-down', 'cpu', 'ssh', 'stale', 'drift', 'app-down')
+if len(sys.argv) != 2 or sys.argv[1] not in kinds:
+    sys.exit('usage: scripts/drill.sh ' + '|'.join(kinds))
 kind = sys.argv[1]
 os.umask(0o077)
 run_id = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ-') + uuid.uuid4().hex[:12]
 evidence = pathlib.Path('.local/evidence') / run_id
 evidence.mkdir(parents=True, mode=0o700)
 start = time.monotonic()
-deadline = start + {'instance-down': 240, 'cpu': 420, 'ssh': 240}[kind]
+deadline = start + {'instance-down': 240, 'cpu': 420, 'ssh': 240, 'stale': 240,
+                    'drift': 240, 'app-down': 480}[kind]
 timeline = {'schema_version': 1, 'run': run_id, 'drill': kind, 'node': 'app',
             'driver': 'docker', 'events': [], 'status': 'running'}
 compose = ['docker', 'compose', '-f', 'ansible/docker-compose.yml']
@@ -33,7 +35,9 @@ forwards = []
 dirty = False
 keydir = '/tmp/hio-drill-' + run_id
 pidfile = '/tmp/hio-stress-' + run_id
-alert_name = {'instance-down': 'InstanceDown', 'ssh': 'SSHRejectedAttempts'}.get(kind)
+alert_names = {'instance-down': ('InstanceDown',), 'cpu': (), 'ssh': ('SSHRejectedAttempts',),
+               'stale': ('SSHMetricsStale', 'HardeningAuditStale'), 'drift': ('HardeningDrift',),
+               'app-down': ('AppDown', 'AppMetricsMissing')}[kind]
 injected_at = None
 
 def save():
@@ -81,7 +85,7 @@ def poll(predicate, seconds=120):
     raise RuntimeError('stage deadline')
 
 def matching(alert):
-    return alert['labels'].get('alertname') == alert_name and alert['labels'].get('node') == 'app'
+    return alert['labels'].get('alertname') in alert_names and alert['labels'].get('node') == 'app'
 
 def fresh(value):
     return dt.datetime.fromisoformat(value.replace('Z', '+00:00')) >= injected_at
@@ -93,10 +97,11 @@ def am_alerts():
     return [a for a in get(29093, '/api/v2/alerts?active=true') if matching(a)]
 
 def received():
-    return any(group.get('receiver', {}).get('name') == 'blackhole' and any(
-        matching(a) and fresh(a['startsAt']) and a['status']['state'] == 'active'
-        for a in group.get('alerts', []))
-        for group in get(29093, '/api/v2/alerts/groups'))
+    active = [a for group in get(29093, '/api/v2/alerts/groups')
+              if group.get('receiver', {}).get('name') == 'blackhole'
+              for a in group.get('alerts', [])
+              if matching(a) and fresh(a['startsAt']) and a['status']['state'] == 'active']
+    return all(any(a['labels']['alertname'] == name for a in active) for name in alert_names)
 
 def target_up():
     values = query('up{job="managed-nodes"}')
@@ -156,6 +161,12 @@ def recover():
                "import pathlib; p=pathlib.Path(" + repr(keydir) + "); "
                "[(p/n).unlink(missing_ok=True) for n in ('key','key.pub')]; "
                "p.rmdir() if p.exists() else None")
+    elif kind == 'stale':
+        remote('app', 'supervisorctl', 'start', 'ssh_metrics')
+    elif kind == 'drift':
+        remote('app', 'chmod', '0600', '/etc/security/vault/credentials.env')
+    elif kind == 'app-down':
+        remote('app', 'supervisorctl', 'start', 'demo-app')
     dirty = False
 
 def interrupted(signum, frame):
@@ -185,11 +196,14 @@ try:
     if kind == 'cpu':
         candidates = [r for r in rules if 'node_cpu_seconds_total' in r['query']]
         assert len(candidates) == 1, 'exactly one CPU rule required'
-        alert_name = candidates[0]['name']
-    selected = [r for r in rules if r['name'] == alert_name]
-    assert len(selected) == 1 and selected[0]['duration'] >= 5, 'observable pending interval required'
-    timeline['rule'] = {'name': alert_name, 'expression': selected[0]['query'],
+        alert_names = (candidates[0]['name'],)
+    selected = [r for name in alert_names for r in rules if r['name'] == name]
+    assert len(selected) == len(alert_names) and all(r['duration'] >= 5 for r in selected), \
+        'observable pending interval required'
+    timeline['rule'] = {'name': selected[0]['name'], 'expression': selected[0]['query'],
                         'for_seconds': selected[0]['duration']}
+    timeline['rules'] = [{'name': r['name'], 'expression': r['query'], 'for_seconds': r['duration']}
+                         for r in selected]
     poll(target_up, 15)
     healthy_app()
     audit('baseline')
@@ -214,9 +228,15 @@ try:
             "import subprocess,pathlib,json; p=subprocess.Popen(['stress-ng','--cpu','1','--cpu-load','90',"
             "'--timeout','120s'],start_new_session=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL); "
             "pathlib.Path(" + repr(pidfile) + ").write_text(json.dumps([p.pid,pathlib.Path('/proc/'+str(p.pid)+'/stat').read_text().split()[21]]))")
-    else:
+    elif kind == 'ssh':
         remote('control-node', 'mkdir', '-m', '700', keydir)
         remote('control-node', 'ssh-keygen', '-q', '-t', 'ed25519', '-N', '', '-f', keydir + '/key')
+    elif kind == 'stale':
+        remote('app', 'supervisorctl', 'stop', 'ssh_metrics')
+    elif kind == 'drift':
+        remote('app', 'chmod', '0644', '/etc/security/vault/credentials.env')
+    elif kind == 'app-down':
+        remote('app', 'supervisorctl', 'stop', 'demo-app')
     event('injected')
     if kind == 'ssh':
         remote('control-node', 'python3', '-c',
@@ -235,7 +255,9 @@ try:
     event('signal')
     poll(lambda: any(a['state'] == 'pending' and fresh(a['activeAt']) for a in prom_alerts()), 30)
     event('pending')
-    poll(lambda: any(a['state'] == 'firing' and fresh(a['activeAt']) for a in prom_alerts()), 120)
+    poll(lambda: all(any(a['labels']['alertname'] == name and a['state'] == 'firing'
+                         and fresh(a['activeAt']) for a in prom_alerts())
+                     for name in alert_names), 240)
     event('firing')
     poll(received, 45)
     event('alertmanager')

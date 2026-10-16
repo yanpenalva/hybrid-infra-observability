@@ -85,17 +85,23 @@ whose default Python is 3.14, create the validator venv with Python 3.11.
    bash scripts/drill.sh instance-down   # exporter stopped → InstanceDown → blackhole → resolved
    bash scripts/drill.sh ssh             # 6 rejected keys → SSHRejectedAttempts → resolved
    bash scripts/drill.sh cpu             # bounded stress-ng → CPU rule by API discovery
+   bash scripts/drill.sh stale           # SSH timer stopped → SSHMetricsStale + HardeningAuditStale → resolved
+   bash scripts/drill.sh drift           # credentials file mode flipped → HardeningDrift → resolved
+   bash scripts/drill.sh app-down        # demo app stopped → AppDown + AppMetricsMissing → resolved
    ```
 7. `make down` — removes workloads and Compose containers, preserving `.local/`
    and the Prometheus PVC/PV for review. Do not commit private evidence.
 
-The three drills answer different questions:
+The drills answer different questions:
 
 | Drill | Objective | Proof |
 | --- | --- | --- |
 | `instance-down` | Detect loss of one exporter and confirm recovery | New `InstanceDown` reaches Prometheus and Alertmanager's `blackhole` receiver, then resolves |
 | `ssh` | Verify rejected keys travel through the SSH collector into an alert while hardening stays intact | Six rejected keys increase the counter; `SSHRejectedAttempts` fires and resolves; audits pass |
 | `cpu` | Test the canonical CPU rule with bounded load without weakening its threshold | Alert chain if the metric crosses 80%; otherwise a recorded `cpu-bounded` failure |
+| `stale` | Prove the absent-series contract: target up, collector stopped | `SSHMetricsStale` and `HardeningAuditStale` fire from missing series and resolve after the timer restarts |
+| `drift` | Prove the audit detects a hardening regression and recovery | `chmod 0644` on the synthetic credentials file fires `HardeningDrift`; restoring `0600` resolves it and the recovered audit passes |
+| `app-down` | Prove the app availability and missing-metrics rules | `AppDown` and `AppMetricsMissing` fire while the demo app is stopped and resolve after the restart |
 
 ## Expected proof per step
 
@@ -107,13 +113,13 @@ The three drills answer different questions:
   rule fires while the injected window is full, and the app returns 200 again
   immediately after `{"duration_seconds": 0}`.
 - Step 6: each drill writes `.local/evidence/<run>/timeline.json`. Successful
-  instance-down and SSH drills contain the UTC
-  chain `baseline → injected → signal → pending → firing → alertmanager →
-  recovered → resolved`, plus `audit-baseline.json` and `audit-recovered.json`
-  from the read-only probe. A CPU run may end at `baseline → injected` with
-  `status: fail` and should be reported as `cpu-bounded`, with its baseline audit
-  retained. An Alertmanager receipt is only ever the `blackhole` receiver:
-  receipt, never delivery.
+  drills contain the UTC chain `baseline → injected → signal → pending →
+  firing → alertmanager → recovered → resolved`, plus `audit-baseline.json`
+  and `audit-recovered.json` from the read-only probe; `stale` and `app-down`
+  prove two rules each. A CPU run may end at `baseline → injected` with
+  `status: fail` and should be reported as `cpu-bounded`, with its baseline
+  audit retained. An Alertmanager receipt is only ever the `blackhole`
+  receiver: receipt, never delivery.
 
 ## Honest boundaries
 

@@ -1,8 +1,8 @@
 # Control → signal → rule → drill → evidence
 
-State: local Gate 1 + Gate 2 execution on 2026-10-16 passed, with private
-evidence under `.local/evidence/`. Instance-down and SSH drills passed; CPU
-failed closed as `cpu-bounded`. These local files are not committed evidence.
+Local execution on 2026-10-16 (private evidence under `.local/evidence/`):
+instance-down, SSH, stale, drift and app-down drills passed; CPU failed
+closed as `cpu-bounded`. These local files are not committed evidence.
 The IDs below are the literals produced by `ansible/control-node/ssh_metrics/audit.py`.
 `pass`, `fail`, `error` and `exception` are distinct states. Absence is never PASS.
 
@@ -15,14 +15,15 @@ The IDs below are the literals produced by `ansible/control-node/ssh_metrics/aud
 | secops | **removed from the contract in the fix pass (item 3)**: the privileged account is derived from the Vault, not a literal `secops` | — | — | — | — |
 | shadow_mode | /etc/shadow root:shadow 0640; content never read | lab_hardening_control_pass | HardeningDrift | audit before and after drills | audit.json |
 | vault_directory | root:root 0700 directory, no symlink | lab_hardening_control_pass | HardeningDrift | audit before and after drills | audit.json |
-| credentials_mode | root:root 0600 file; content and symlink never read | lab_hardening_control_pass | HardeningDrift | audit before and after drills | audit.json |
+| credentials_mode | root:root 0600 file; content and symlink never read | lab_hardening_control_pass | HardeningDrift | audit before and after drills; drift flips and restores the mode | audit.json; timeline.json |
 | banner | **removed from the contract in the fix pass (item 3)**: the baseline applies no Banner/issue.net | — | — | — | — |
 | logrotate | existing configuration and a valid logrotate --debug | lab_hardening_control_pass | HardeningDrift | actual rotation still pending | audit.json |
 | app_identity | app.py process non-root and NoNewPrivs=1 on app | lab_hardening_control_pass | HardeningDrift | /health before and after every drill | audit.json; timeline.json |
 | sudo_exception | literal NOPASSWD:ALL grant for the automation | lab_hardening_exception | no compliance approval | no implicit removal of the privilege | audit.json, `exception` state |
-| AUDIT-FRESH | age or absence of the collection | lab_hardening_audit_timestamp_seconds | HardeningAuditStale | restart the collector and repeat the audit | audit.json |
-| SSH-PIPELINE | parser and supervised timer | lab_ssh_collector_timestamp_seconds; lab_ssh_collector_error; lab_ssh_collector_unmatched_total | SSHMetricsStale | ssh; restore timer/log | timeline.json |
+| AUDIT-FRESH | age or absence of the collection | lab_hardening_audit_timestamp_seconds | HardeningAuditStale | stale; restart the collector and repeat the audit | audit.json; timeline.json |
+| SSH-PIPELINE | parser and supervised timer | lab_ssh_collector_timestamp_seconds; lab_ssh_collector_error; lab_ssh_collector_unmatched_total | SSHMetricsStale | ssh; stale; restore timer/log | timeline.json |
 | NODE-UP | availability of both exporters | up | InstanceDown | instance-down; supervisorctl start node_exporter | timeline.json |
+| APP-UP | demo app availability and its request series | up{job="demo-app"}; demo_http_* | AppDown; AppMetricsMissing | app-down; supervisorctl start demo-app | timeline.json |
 | CPU-BOUNDED | one worker, 120s, cgroup ≤0.5 CPU and ≤128 PIDs | node_cpu_seconds_total | discovery of the literal name through the /rules API, the only rule using that metric | cpu; terminate only the process group of the lab process | timeline.json |
 
 ## Sources and execution contracts
@@ -57,7 +58,7 @@ The IDs below are the literals produced by `ansible/control-node/ssh_metrics/aud
   loopback inside app, checks the 5xx counter and the short burn rule in firing,
   and removes the overlay in `finally`/trap (re-applies `k8s/monitoring` and
   restarts Prometheus), so the canonical state returns even on failure.
-- Drills: `scripts/drill.sh instance-down|cpu|ssh`. F1 `/health` API on
+- Drills: `scripts/drill.sh instance-down|cpu|ssh|stale|drift|app-down`. F1 `/health` API on
   `127.0.0.1:8080` inside app; Prometheus/Alertmanager APIs through their own
   loopback forwards. No silences, external scans, password guessing or dependency
   on dedup. SSH offers exactly six rejected keys and requires a delta of six,

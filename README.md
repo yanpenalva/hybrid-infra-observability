@@ -102,6 +102,9 @@ never delivery.
 bash scripts/drill.sh instance-down   # exporter stopped → InstanceDown → resolved
 bash scripts/drill.sh ssh             # 6 rejected keys → SSHRejectedAttempts → resolved
 bash scripts/drill.sh cpu             # bounded stress-ng → CPU rule (may fail closed on some drivers — valid result)
+bash scripts/drill.sh stale           # SSH timer stopped → SSHMetricsStale + HardeningAuditStale → resolved
+bash scripts/drill.sh drift           # credentials file mode flipped → HardeningDrift → resolved
+bash scripts/drill.sh app-down        # demo app stopped → AppDown + AppMetricsMissing → resolved
 ```
 
 ## Evidence
