@@ -46,11 +46,16 @@ make init    # second run only re-validates; credentials must be byte-identical
 HIO_REQUIRE_TOOLS=1 make check  # static gate; missing validators fail
 make up      # ping → node exporter → security_hardening → deploy_ssh_metrics
 make up      # convergence run
+sudo bash scripts/firewall.sh apply  # restrict published ports to the Minikube network
 make monitoring   # ClusterIP stack; waits for rollouts + PVC Bound
 make smoke    # runtime gate incl. loopback /chaos 503 burn-rate proof
+make route-check  # bind restricted: positive, foreign-network and LAN legs
 bash scripts/drill.sh instance-down
 bash scripts/drill.sh ssh
 bash scripts/drill.sh cpu
+bash scripts/drill.sh stale
+bash scripts/drill.sh drift
+bash scripts/drill.sh app-down
 make down     # preserves credentials, cluster, PVC/PV and volumes
 ```
 
@@ -65,6 +70,9 @@ make down     # preserves credentials, cluster, PVC/PV and volumes
   `HIO_REQUIRE_TOOLS=1`, missing validators fail instead of SKIP.
 - `make up`: four playbooks green in order; `ssh_metrics` RUNNING on both
   nodes; exporters scraping.
+- `scripts/firewall.sh apply`: the published ports accept only the Minikube
+  network; `make route-check` reports PASS on the listeners, positive,
+  foreign-network and LAN legs.
 - `make monitoring`: three rollouts `successfully rolled out`,
   `pvc/prometheus-data` `Bound`.
 - `make smoke`: 5xx counter +90, short-window burn alert fires, overlay

@@ -21,12 +21,11 @@ operator-owned host configuration that must be persisted across reboots.
 - Kubernetes (`hybrid-infra-observability`, dedicated Minikube profile/context): Prometheus,
   Grafana and Alertmanager are ClusterIP-only; operator access is loopback-only port-forward.
 - Metrics route: one bridge bind (`HIO_METRICS_BIND`), never all-interface.
-  Gate 2 exercised the Docker-to-Minikube route, and the 2026-10-16
-  negative-origin test now passes with the host firewall restricted to
-  Minikube sources: no all-interface listener (the LAN address refuses),
-  foreign Docker networks time out and the Minikube node keeps reaching the
-  bind; private evidence in `.local/evidence/route-negative-20261016*.json`.
-  Persist the firewall rule across reboots before relying on it.
+  `scripts/firewall.sh apply` restricts the published ports to the Minikube
+  subnet on the proxy (INPUT) and DNAT (DOCKER-USER) paths, and
+  `make route-check` proves no all-interface listener, a reachable Minikube
+  node and blocked foreign Docker-network and LAN origins. Persist the
+  firewall rules across reboots before relying on them.
 - Alert path: the blackhole receiver demonstrates receipt through the Alertmanager API only —
   no external delivery is promised, and Alertmanager is intended to be stateless.
 
@@ -59,7 +58,7 @@ private evidence reference (never values).
   only (digest freezing is still a known gap).
 - Repeat the runtime gates on each new host and profile; `docs/demo.md` is the
   procedure. Independent reproduction has not been performed.
-- Persist the host firewall rule that restricts the metrics bind across
+- Persist the host firewall rules applied by `scripts/firewall.sh` across
   reboots.
 - Keep private evidence private: local execution is not independent
   reproduction.

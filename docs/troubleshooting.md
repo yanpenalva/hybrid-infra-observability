@@ -46,6 +46,15 @@ checkout and re-run `make smoke`; confirm the overlay was removed before retry.
 Smoke fails closed without docker/daemon/compose/kubectl/PyYAML.
 Install the missing piece and retry — do not bypass the preflight.
 
+## `make route-check` failures
+
+The published ports must accept only the Minikube network. Apply the host
+rules with `sudo bash scripts/firewall.sh apply` and re-run `make route-check`.
+If the rules were applied manually before, run `apply` once first: it detects
+identical rules, records their parameters under `.local/` and `revert` then
+removes them. After a `make down`/`make up` cycle Docker may assign the compose
+network a different subnet; `revert` then `apply` refreshes the recorded rules.
+
 ## `ssh_metrics` not RUNNING
 
 `make up` runs `deploy_ssh_metrics` last; smoke/drill preflight aborts with

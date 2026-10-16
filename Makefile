@@ -4,7 +4,7 @@ ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 PROFILE := hybrid-infra-observability
 COMPOSE = docker compose --project-name hybrid-infra-observability -f ansible/docker-compose.yml
 .DEFAULT_GOAL := check
-.PHONY: init up monitoring check smoke down
+.PHONY: init up monitoring check smoke down firewall firewall-revert route-check
 
 init:
 	@cd "$(ROOT)" && bash scripts/init.sh
@@ -56,6 +56,15 @@ check:
 
 smoke:
 	@cd "$(ROOT)" && test -f .local/init-complete && bash scripts/smoke.sh
+
+firewall:
+	@cd "$(ROOT)"; sudo bash scripts/firewall.sh apply
+
+firewall-revert:
+	@cd "$(ROOT)"; sudo bash scripts/firewall.sh revert
+
+route-check:
+	@cd "$(ROOT)"; bash scripts/route-check.sh
 
 down:
 	@cd "$(ROOT)"; test "$$(kubectl config current-context)" = "$(PROFILE)"; \

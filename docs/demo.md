@@ -43,6 +43,9 @@ kubectl --context hybrid-infra-observability -n kube-system edit configmap cored
 ```
 
 Do not bind to `0.0.0.0` or use a gateway from a different Docker network.
+The published ports are restricted to Minikube sources by the host firewall;
+after `make up`, apply the restriction with `sudo bash scripts/firewall.sh
+apply` (idempotent; `revert` removes the rules).
 For a local validator install, follow the pinned download/install commands in
 `.github/workflows/ci.yml` and prepend their bin directory to `PATH`. On hosts
 whose default Python is 3.14, create the validator venv with Python 3.11.
@@ -79,7 +82,11 @@ whose default Python is 3.14, create the validator venv with Python 3.11.
    `POST /chaos`, the 5xx counter and the `DemoSLOBurnRateShortWindow` burn
    alert are verified, and the overlay is removed again on exit. The smoke
    reopens its Prometheus port-forward after each rollout.
-6. Drills, one at a time, each with its own evidence directory:
+6. `make route-check` — proves the exposure contract: the bind listens only
+   on the profile-network gateway, the Minikube node reaches all three
+   published ports and a foreign Docker network plus the host LAN address do
+   not. Run `sudo bash scripts/firewall.sh apply` if it fails.
+7. Drills, one at a time, each with its own evidence directory:
 
    ```sh
    bash scripts/drill.sh instance-down   # exporter stopped → InstanceDown → blackhole → resolved
@@ -89,7 +96,7 @@ whose default Python is 3.14, create the validator venv with Python 3.11.
    bash scripts/drill.sh drift           # credentials file mode flipped → HardeningDrift → resolved
    bash scripts/drill.sh app-down        # demo app stopped → AppDown + AppMetricsMissing → resolved
    ```
-7. `make down` — removes workloads and Compose containers, preserving `.local/`
+8. `make down` — removes workloads and Compose containers, preserving `.local/`
    and the Prometheus PVC/PV for review. Do not commit private evidence.
 
 The drills answer different questions:
