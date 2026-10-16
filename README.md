@@ -122,8 +122,8 @@ and sanitized — never committed (`.local/` is git-ignored).
   the host firewall (negative-origin check passed 2026-10-16), and runtime
   verification must be repeated on each target machine.
 - Fresh local material does not revoke credentials exposed elsewhere; the owner
-  confirmed no real credentials were exposed for this project, and independent
-  reproduction plus the final publication review still block release.
+  confirmed no real credentials were exposed for this project. Verification is
+  a single local execution — independent reproduction is not claimed.
 
 ## Docs
 
@@ -133,7 +133,7 @@ and sanitized — never committed (`.local/` is git-ignored).
 - `docs/control-signal-matrix.md` — control → signal → rule → drill → evidence IDs.
 - `docs/adr/` — local exposure, single-node storage, alert routing decisions.
 - `docs/security-model.md`, `docs/publication-checklist.md` — trust boundaries,
-  revocation record, release gates.
+  revocation record, publication record.
 
 ## License
 

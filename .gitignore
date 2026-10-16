@@ -9,3 +9,7 @@
 *.log
 __pycache__/
 .DS_Store
+
+# Local tooling state
+/.ansible/
+/.code-review-graph/

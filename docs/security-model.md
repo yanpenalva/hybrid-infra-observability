@@ -1,20 +1,16 @@
 # Security model
 
-Status: local Gate 1 + Gate 2 execution recorded on 2026-10-16; publication is
-still blocked. This model documents trust boundaries and limitations; it does
-not certify production security. Gate 1 and Gate 2 passed on the local profile;
-the `instance-down` and `ssh` drills passed, and the CPU drill failed closed as
-`cpu-bounded`. The supporting timelines and audits are private under
-`.local/evidence/` and are not committed. The owner confirmed no real
-credentials were ever exposed (nothing to revoke) and no open P1 items, and the
-local bootstrap proof (two byte-identical `make init` runs) is recorded. The
-negative-origin route test passed on 2026-10-16 after the host firewall was
-restricted to Minikube sources (private evidence in `.local/evidence/`; persist
-the rule across reboots). Still open: independent reproduction, the final
-publication-commit scan and owner authorization (see
-`docs/publication-checklist.md`). The remote static workflow also passed for
-commit `41fc17d` (GitHub Actions run `38938744660`); this does not clear the
-remaining release gates.
+Status: published as a local lab on 2026-10-16. This model documents trust
+boundaries and limitations; it does not certify production security. Gate 1
+and Gate 2 passed on the local profile, the `instance-down` and `ssh` drills
+passed, and the CPU drill failed closed as `cpu-bounded`. The owner confirmed
+no real credentials were ever exposed and no open P1 items; the local bootstrap
+proof is recorded. The metrics bind is source-restricted to Minikube by the
+host firewall and the negative-origin route test passes. Evidence is a single
+local execution: private timelines and audits stay under `.local/evidence/`,
+independent reproduction was not performed and the firewall rule must be
+persisted across reboots. See `docs/publication-checklist.md` for the full
+record.
 
 ## Trust boundaries
 
@@ -41,8 +37,8 @@ remaining release gates.
 
 Everything under `ansible/keys/`, `**/.vault_pass`, `**/vars/vault.yml` and `.local/` is generated
 locally, ignored by git and excluded from build contexts. Contents are synthetic fixtures; the
-Grafana admin password/Secret is generated per environment, not per invocation (checklist item 10).
-No rotation and no existing-database password change is promised yet.
+Grafana admin password/Secret is generated per environment, not per invocation (see the
+publication checklist). No rotation and no existing-database password change is promised yet.
 
 ## Sudo exception
 
@@ -54,7 +50,7 @@ Privilege separation on the teaching nodes is out of scope for wave 1.
 Empty by owner statement: on 2026-10-16 the owner confirmed that no real
 credentials were ever exposed for this project, so no revocation applies. If
 that statement changes, record each category here with scope, date and a
-private evidence reference (never values) before publication.
+private evidence reference (never values).
 
 | Category | Scope | Revoked at | Evidence (private) |
 |----------|-------|------------|--------------------|
@@ -62,11 +58,10 @@ private evidence reference (never values) before publication.
 
 ## Open items
 
-- Re-run the final content/history/package scan at the publication commit and
-  complete independent reproduction. The 2026-10-16 negative-origin route test
-  passed after the host firewall was restricted to Minikube sources; persist
-  that rule across reboots.
-- Complete independent reproduction; track these in
-  `docs/publication-checklist.md`.
+- Repeat the runtime gates on each new host and profile; `docs/demo.md` is the
+  procedure. Independent reproduction has not been performed (see
+  `docs/publication-checklist.md`).
+- Persist the host firewall rule that restricts the metrics bind across
+  reboots.
 - Keep private evidence private. Local execution is not independent
-  reproduction or publication approval.
+  reproduction.

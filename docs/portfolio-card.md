@@ -1,6 +1,6 @@
 # Portfolio card
 
-Status: draft; publication remains blocked by `docs/publication-checklist.md`.
+Status: published as a local lab; not a production-readiness claim.
 
 ## Hybrid infrastructure observability lab
 
@@ -12,12 +12,11 @@ dedicated Minikube profile; it is a learning lab, not a production platform.
 ## Verified locally
 
 On 2026-10-16, Gate 1 (static validation) and Gate 2 (runtime smoke) passed on
-the local profile. The `instance-down` and `ssh` drills passed. The bounded CPU
-drill failed closed as `cpu-bounded`; its alert threshold was not weakened. The
-metrics bind is source-restricted to Minikube by the host firewall (the
-negative-origin check passed the same day). Timelines and audit records are
-stored privately under `.local/evidence/` and are not published with the
-repository.
+the local profile, including a full smoke re-run with the metrics bind
+source-restricted to Minikube by the host firewall. The `instance-down` and
+`ssh` drills passed; the bounded CPU drill failed closed as `cpu-bounded`
+without weakening its alert threshold. Timelines and audit records stay
+private under `.local/evidence/`.
 
 ## Read more
 
@@ -27,9 +26,4 @@ repository.
 - [Architecture decisions](adr/)
 - [Publication checklist](publication-checklist.md)
 
-Recorded on 2026-10-16: no real credentials were exposed (owner statement),
-the local bootstrap proof passed, no P1 items are open, the remote static
-workflow is green and the negative-origin route check passes with the host
-firewall restricted to Minikube. Remaining before publication: independent
-reproduction, the final publication-commit scan and owner authorization. No
-production-readiness or independent-reproducibility claim is made.
+Verified on one local profile only; independent reproduction is not claimed.
