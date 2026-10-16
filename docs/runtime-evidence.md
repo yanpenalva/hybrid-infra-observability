@@ -64,5 +64,5 @@ was restricted (INPUT rule for the proxy path plus a DOCKER-USER rule on the
 post-DNAT ports), the re-test passed: the bind listens only on the
 profile-network gateway, the host LAN address refuses, foreign Docker networks
 time out, the Minikube node keeps reaching all three ports and Prometheus
-targets stay `up`. Persist the rule across reboots. Known limits are recorded
-in [`publication-checklist.md`](publication-checklist.md).
+targets stay `up`. Persist the rule across reboots. See
+[`security-model.md`](security-model.md) for the trust boundaries and limits.

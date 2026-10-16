@@ -2,7 +2,7 @@
 # Real runtime only. Missing Docker, kubectl, PyYAML or dedicated context FAILS.
 # Prerequisites: init/up/monitoring; lab DNS metrics-gateway.hio.test reachable
 # from Pods; HIO_METRICS_BIND verified and firewall restricted to Minikube.
-# No LAN negative test is fabricated: validate that separately before publication.
+# No LAN negative test is fabricated: validate the origin restriction separately.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 for tool in docker kubectl python3; do

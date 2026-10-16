@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 15
     # This job never needs a cluster or personal secrets. Tool absence FAILS by
     # default. For an explicit reduced local run: HIO_REQUIRE_TOOLS=0 scripts/check.sh
-    # emits SKIP per missing tool; such a run is NOT the full CI/publication gate.
+    # emits SKIP per missing tool; such a run is NOT the full CI gate.
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:

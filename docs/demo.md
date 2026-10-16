@@ -6,12 +6,12 @@ Alertmanager receives the alert, and recovery returns the signal to baseline.
 The static gate catches configuration and code errors; the runtime gate checks
 the actual Docker-to-Minikube route, resource limits and bounded 503 burn.
 
-Status: **executed locally on 2026-10-16**. Init, the required static gate,
-monitoring and smoke passed. The instance-down and SSH drills passed; the CPU
-drill failed closed after injection (`cpu-bounded`). Private timelines and audits
-remain under `.local/evidence/` and are not part of the repository; the
-sanitized summary is [runtime-evidence.md](runtime-evidence.md). Re-run the
-commands below to verify another machine or checkout.
+The commands below were executed locally on 2026-10-16. Init, the required
+static gate, monitoring and smoke passed; the instance-down and SSH drills
+passed; the CPU drill failed closed after injection (`cpu-bounded`). Private
+timelines and audits remain under `.local/evidence/`, with the sanitized
+summary in [runtime-evidence.md](runtime-evidence.md). Re-run the commands
+below to verify another machine or checkout.
 
 ## Prerequisites
 

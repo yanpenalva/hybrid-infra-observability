@@ -1,7 +1,5 @@
 # Portfolio card
 
-Status: published as a local lab; not a production-readiness claim.
-
 ## Hybrid infrastructure observability lab
 
 A local Compose/Ansible and Kubernetes lab that connects host hardening
@@ -24,6 +22,5 @@ private under `.local/evidence/`.
 - [Runtime evidence](runtime-evidence.md)
 - [Control-to-signal matrix](control-signal-matrix.md)
 - [Architecture decisions](adr/)
-- [Publication checklist](publication-checklist.md)
 
 Verified on one local profile only; independent reproduction is not claimed.

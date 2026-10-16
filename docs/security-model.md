@@ -1,16 +1,13 @@
 # Security model
 
-Status: published as a local lab on 2026-10-16. This model documents trust
-boundaries and limitations; it does not certify production security. Gate 1
-and Gate 2 passed on the local profile, the `instance-down` and `ssh` drills
-passed, and the CPU drill failed closed as `cpu-bounded`. The owner confirmed
-no real credentials were ever exposed and no open P1 items; the local bootstrap
-proof is recorded. The metrics bind is source-restricted to Minikube by the
-host firewall and the negative-origin route test passes. Evidence is a single
-local execution: private timelines and audits stay under `.local/evidence/`,
-independent reproduction was not performed and the firewall rule must be
-persisted across reboots. See `docs/publication-checklist.md` for the full
-record.
+This model documents the lab's trust boundaries and its limits; it does not
+certify production security. Gate 1 and Gate 2 passed on a single local profile
+(2026-10-16), the `instance-down` and `ssh` drills passed, and the CPU drill
+failed closed as `cpu-bounded`; the metrics bind is source-restricted to
+Minikube by the host firewall and the negative-origin route test passes. The
+timelines and audits stay private under `.local/evidence/`. Independent
+reproduction on another machine was not performed, and the firewall rule is
+operator-owned host configuration that must be persisted across reboots.
 
 ## Trust boundaries
 
@@ -37,8 +34,9 @@ record.
 
 Everything under `ansible/keys/`, `**/.vault_pass`, `**/vars/vault.yml` and `.local/` is generated
 locally, ignored by git and excluded from build contexts. Contents are synthetic fixtures; the
-Grafana admin password/Secret is generated per environment, not per invocation (see the
-publication checklist). No rotation and no existing-database password change is promised yet.
+Grafana admin password/Secret is generated per environment, not per invocation, so idempotent
+re-runs never rotate it and rotation requires an explicit procedure. No rotation and no
+existing-database password change is promised yet.
 
 ## Sudo exception
 
@@ -47,9 +45,8 @@ Privilege separation on the teaching nodes is out of scope for wave 1.
 
 ## Revoked categories register
 
-Empty by owner statement: on 2026-10-16 the owner confirmed that no real
-credentials were ever exposed for this project, so no revocation applies. If
-that statement changes, record each category here with scope, date and a
+No categories require revocation: no real credentials were exposed for this
+project. If that changes, record each category here with scope, date and a
 private evidence reference (never values).
 
 | Category | Scope | Revoked at | Evidence (private) |
@@ -59,9 +56,8 @@ private evidence reference (never values).
 ## Open items
 
 - Repeat the runtime gates on each new host and profile; `docs/demo.md` is the
-  procedure. Independent reproduction has not been performed (see
-  `docs/publication-checklist.md`).
+  procedure. Independent reproduction has not been performed.
 - Persist the host firewall rule that restricts the metrics bind across
   reboots.
-- Keep private evidence private. Local execution is not independent
+- Keep private evidence private: local execution is not independent
   reproduction.

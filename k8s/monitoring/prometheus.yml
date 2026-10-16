@@ -16,7 +16,7 @@ scrape_configs:
           node: app
   # Operator must resolve this lab-only DNS name to the verified bridge bind
   # from Pods, and restrict firewall sources to the dedicated Minikube node.
-  # No universal host gateway is assumed; failure blocks runtime/publication.
+  # No universal host gateway is assumed; failure blocks the runtime scrape.
   - job_name: managed-nodes
     static_configs:
       - targets: ['metrics-gateway.hio.test:9101']
