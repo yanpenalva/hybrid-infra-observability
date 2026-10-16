@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Only the dedicated local Compose/Minikube lab; no remote targets or silences.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 export PYTHONDONTWRITEBYTECODE=1
@@ -105,7 +104,6 @@ def target_up():
         float(v['value'][1]) == 1 for v in values)
 
 def healthy_app():
-    # F1 health endpoint is checked inside app; it need not be exposed to the host.
     remote('app', 'python3', '-c',
            "import urllib.request; assert urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=3).status == 200")
     return True
@@ -119,9 +117,6 @@ def supervisor_status(service, program):
     return result.stdout
 
 def require_ssh_metrics():
-    # Fail early and explicitly: without the supervised deploy there is no
-    # lab_ssh_* / lab_hardening_* signal, which would otherwise surface as a
-    # misleading "no data" far into the drill.
     for service in ('app', 'db'):
         if 'RUNNING' not in supervisor_status(service, 'ssh_metrics'):
             print('FAIL preflight: ssh_metrics not RUNNING on ' + service +
@@ -130,8 +125,6 @@ def require_ssh_metrics():
             raise RuntimeError('deploy_ssh_metrics preflight')
 
 def audit(stage):
-    # The controller mount is read-only: write there to private /tmp, then project
-    # only the sanitized JSON to local evidence, even when the audit fails.
     destination = '/tmp/hio-evidence-' + run_id
     result = sp.run(compose + ['exec', '-T', 'control-node', 'ansible-playbook',
         'playbooks/audit_hardening.yml', '-e', 'audit_evidence_root=' + destination,
@@ -141,8 +134,6 @@ def audit(stage):
     if result.returncode:
         raise RuntimeError('audit')
     assert {r['node'] for r in report['nodes']} == {'app', 'db'}
-    # sudo is an explicit, documented lab exception; every other control must
-    # pass in both the baseline and the recovered audit.
     assert all(r['controls'].get('sudo_exception') == 'exception' and all(
         status == 'pass' for name, status in r['controls'].items()
         if name != 'sudo_exception') for r in report['nodes']), 'hardening audit not green'
@@ -261,9 +252,8 @@ try:
 except Exception as exc:
     failed = True
     timeline['status'] = 'fail'
-    timeline['error_type'] = type(exc).__name__  # No raw command, HTTP or log contents.
+    timeline['error_type'] = type(exc).__name__
 finally:
-    # Cleanup gets its own small budget even after the observation deadline.
     deadline = time.monotonic() + 30
     try:
         recover()

@@ -18,11 +18,9 @@ import subprocess
 import sys
 import tempfile
 
-
 def require(condition, message):
     if not condition:
         raise ValueError(message)
-
 
 def run(*args, data=None):
     result = subprocess.run(args, input=data, stdout=subprocess.PIPE,
@@ -30,10 +28,8 @@ def run(*args, data=None):
     require(result.returncode == 0, 'external command failed: ' + args[0])
     return result.stdout
 
-
 def token(value):
     return isinstance(value, str) and re.fullmatch(r'[0-9a-f]{64}', value) is not None
-
 
 def validate_values(values):
     require(set(values) == {'vault_security_admin_user', 'vault_security_admin_password',
@@ -46,19 +42,16 @@ def validate_values(values):
     require(token(values['vault_app_secret_key']) and token(values['vault_db_backup_token']),
             'invalid synthetic values')
 
-
 def metadata(path, mode, directory=False):
     info = path.lstat()
     kind = stat.S_ISDIR if directory else stat.S_ISREG
     require(kind(info.st_mode) and info.st_uid == os.getuid()
             and stat.S_IMODE(info.st_mode) == mode, 'invalid ownership/type/mode: ' + str(path))
 
-
 def write(path, content, mode=0o600):
     with path.open('xb') as stream:
         stream.write(content)
     path.chmod(mode)
-
 
 def validate(root):
     for name in ('ansible/keys', '.local'):
@@ -86,7 +79,6 @@ def validate(root):
     require(json.loads((root / '.local/grafana-admin-secret.yaml').read_text()) == expected,
             'Grafana Secret mismatch')
 
-
 files = {'ansible/keys/id_ed25519': 0o600,
          'ansible/keys/id_ed25519.pub': 0o644,
          'ansible/control-node/.vault_pass': 0o600,
@@ -94,13 +86,11 @@ files = {'ansible/keys/id_ed25519': 0o600,
          '.local/grafana-admin-password': 0o600,
          '.local/grafana-admin-secret.yaml': 0o600}
 
-
 def main():
     require(len(sys.argv) == 2, 'usage: scripts/init.sh')
     for command in ('ssh-keygen', 'openssl', 'ansible-vault'):
         require(shutil.which(command), 'missing dependency: ' + command)
     root = Path(sys.argv[1])
-    # Refuse symlink ancestors before any credential write or subprocess read.
     for name in (*files, '.local/init.lock', '.local/init-complete'):
         current = root
         for part in Path(name).parts:
@@ -158,13 +148,11 @@ def main():
             for name in files:
                 destination = root / name
                 destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-                # Atomic no-clobber publication; interruption leaves a refused partial set.
                 os.link(staging / name, destination)
             validate(root)
             complete = staging / 'init-complete'
             write(complete, b'complete\n')
             os.link(complete, marker)
-
 
 if __name__ == '__main__':
     def interrupted(signum, frame):
@@ -174,7 +162,6 @@ if __name__ == '__main__':
     try:
         main()
     except (Exception, KeyboardInterrupt) as error:
-        # Never expose parser errors, decrypted text or subprocess output.
         message = str(error) if type(error) is ValueError else 'initialization failed; inspect local state privately'
         print('init: ' + message, file=sys.stderr)
         sys.exit(1)

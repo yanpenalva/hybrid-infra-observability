@@ -1,7 +1,4 @@
 ---
-# Two plays by design: the managed play only collects sanitized per-node facts,
-# and the controller play (localhost) owns every write, so evidence is saved
-# once and a failed control still leaves a report before the run fails closed.
 - name: Observe hardening without changing managed nodes
   hosts: all
   gather_facts: false

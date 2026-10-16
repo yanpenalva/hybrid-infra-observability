@@ -1,7 +1,4 @@
 ---
-# DECISION: blackhole proves API receipt, never external notification.
-# Stateless: silences/nflog are lost on restart; re-notification is expected.
-# Local API: kubectl -n monitoring port-forward --address 127.0.0.1 svc/alertmanager 9093:9093
 apiVersion: apps/v1
 kind: Deployment
 metadata:

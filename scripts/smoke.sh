@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Real runtime only. Missing Docker, kubectl, PyYAML or dedicated context FAILS.
-# Prerequisites: init/up/monitoring; lab DNS metrics-gateway.hio.test reachable
-# from Pods; HIO_METRICS_BIND verified and firewall restricted to Minikube.
-# No LAN negative test is fabricated: validate the origin restriction separately.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 for tool in docker kubectl python3; do
@@ -35,8 +31,6 @@ forwards = []
 injected = False
 overlay_loaded = False
 phase = 'preflight'
-# Loopback /chaos is not reachable from the host by design: this runs inside
-# app, injects the 503 window, then restores health explicitly before exiting.
 APP_DEMO = """import json, time, urllib.error, urllib.request
 def post(body):
     request = urllib.request.Request('http://127.0.0.1:8080/chaos', data=body.encode(), method='POST')
@@ -117,9 +111,6 @@ def alerts_am():
             if a['labels'].get('alertname') == 'InstanceDown' and a['labels'].get('node') == 'app']
 
 def received_only_by_blackhole():
-    # Alert objects in /api/v2/alerts carry no receiver field; routing is only
-    # visible per group in /api/v2/alerts/groups. blackhole proves receipt via
-    # the API only, never delivery.
     groups = [g for g in get(19093, '/api/v2/alerts/groups')
               if any(a['labels'].get('alertname') == 'InstanceDown'
                      and a['labels'].get('node') == 'app'
@@ -135,22 +126,16 @@ def quantity(value):
             return decimal.Decimal(value[:-len(suffix)]) * decimal.Decimal(scale)
     return decimal.Decimal(value)
 
-
 def counter(expression):
     items = query(expression)
     return float(items[0]['value'][1]) if items else 0.0
-
 
 def supervisor_status(service, program):
     result = sp.run(compose + ['exec', '-T', service, 'supervisorctl', 'status', program],
                     stdout=sp.PIPE, stderr=sp.STDOUT, text=True, timeout=20)
     return result.stdout
 
-
 def require_ssh_metrics():
-    # Fail early and explicitly: without the supervised timer there is no
-    # lab_ssh_* / lab_hardening_* signal at all, which otherwise looks like a
-    # cluster fault far downstream.
     for service in ('app', 'db'):
         if 'RUNNING' not in supervisor_status(service, 'ssh_metrics'):
             print('FAIL preflight: ssh_metrics not RUNNING on ' + service +
@@ -159,7 +144,6 @@ def require_ssh_metrics():
             raise RuntimeError('deploy_ssh_metrics preflight')
     print('PASS ssh_metrics timer RUNNING on app and db', flush=True)
 
-
 def config_volume():
     deployment = json.loads(run(kube + ['get', 'deployment', 'prometheus', '-o', 'json']))
     for index, volume in enumerate(deployment['spec']['template']['spec']['volumes']):
@@ -167,16 +151,11 @@ def config_volume():
             return index, volume['configMap']
     raise RuntimeError('prometheus config volume missing')
 
-
 def demo_rule_present():
     return any(r.get('name') == 'DemoSLOBurnRateShortWindow'
                for group in get(19090, '/api/v1/rules')['data']['groups'] for r in group['rules'])
 
-
 def apply_demo_overlay():
-    # F4 demo proof: load the short-window SLO overlay into the running
-    # Prometheus for this run only. The canonical ConfigMap stays untouched on
-    # disk; every mutation here is undone by remove_demo_overlay() in finally.
     global phase
     phase = 'read demo overlay'
     content = pathlib.Path('k8s/monitoring/demo-slo-overlay.yml').read_text()
@@ -200,11 +179,8 @@ def apply_demo_overlay():
     run(kube + ['rollout', 'status', 'deployment/prometheus', '--timeout=120s'], timeout=130)
     restart_prometheus_forward()
 
-
 def remove_demo_overlay():
     _, config_map = config_volume()
-    # Drop the injected key explicitly: apply merges ConfigMap data, so the
-    # canonical re-apply alone is not guaranteed to delete an unknown key.
     sp.run(kube + ['patch', 'configmap', config_map['name'], '--type', 'json', '-p',
                    '[{"op": "remove", "path": "/data/demo-slo-overlay.yml"}]'],
            stdout=sp.DEVNULL, stderr=sp.DEVNULL, timeout=30)
@@ -215,12 +191,10 @@ def remove_demo_overlay():
     poll('demo short-window overlay removed from Prometheus',
          lambda: not demo_rule_present())
 
-
 def demo_rule_firing():
     return any(alert['labels'].get('alertname') == 'DemoSLOBurnRateShortWindow'
                and alert['labels'].get('slo') == 'availability' and alert['state'] == 'firing'
                for alert in get(19090, '/api/v1/alerts')['data']['alerts'])
-
 
 try:
     current = run(['kubectl', 'config', 'current-context']).strip()
@@ -244,7 +218,7 @@ try:
     run(compose + ['exec', '-T', 'control-node', 'ansible-playbook', 'playbooks/ping.yml'])
     poll('baseline targets UP', up)
     poll('baseline no old app alert', lambda: not alerts_prom() and not alerts_am())
-    injected = True  # Set first: cleanup also covers interrupted stop calls.
+    injected = True
     started = datetime.datetime.now(datetime.timezone.utc)
     run(compose + ['exec', '-T', 'app', 'supervisorctl', 'stop', 'node_exporter'])
     poll('injected target DOWN', lambda: any(i['value'][1] == '0' for i in query(
@@ -299,8 +273,6 @@ try:
     used = disk_kib * 1024
     assert used <= 256_000_000, 'retention disk exceeds 50% of 512MB budget'
     print('PASS retention disk <=256MB/512MB; >=50% WAL/head headroom', flush=True)
-    # F4 proof: app failure mode must burn the SLO budget on a short window.
-    # The overlay is removed by the finally block (trap) on every exit path.
     overlay_loaded = True
     apply_demo_overlay()
     phase = 'query demo rule'
@@ -317,7 +289,6 @@ try:
     phase = 'verify demo SLO alert'
     poll('demo short-window SLO burn firing in Prometheus', demo_rule_firing, 180)
 except (AssertionError, RuntimeError, sp.TimeoutExpired, KeyError, ValueError, OSError) as exc:
-    # Never dump subprocess output, config objects, secrets or HTTP bodies.
     print('FAIL smoke: ' + type(exc).__name__ + ' during ' + phase +
           ' (runtime gate not certified)', file=sys.stderr)
     sys.exit(1)

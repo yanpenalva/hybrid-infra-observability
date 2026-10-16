@@ -27,7 +27,6 @@ services:
     mem_limit: 256m
     cpus: 0.50
     pids_limit: 128
-    # Required: verified bridge interface, never an implicit all-interface bind.
     ports:
       - "${HIO_METRICS_BIND:?Set verified bridge address}:9101:9100"
       - "${HIO_METRICS_BIND:?Set verified bridge address}:8080:8080"

@@ -13,7 +13,6 @@ from audit import audit
 FAILURE = re.compile(rb'\bFailed (publickey|password|keyboard-interactive) for ')
 REASONS = ('publickey', 'password', 'other')
 
-
 def atomic(path, content, mode):
     temporary = path.with_suffix('.tmp')
     fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
@@ -24,10 +23,7 @@ def atomic(path, content, mode):
     os.chmod(temporary, mode)
     os.replace(temporary, path)
 
-
 def collect(log, state):
-    # shortcut: copytruncate can regrow beyond the cursor between polls; use rename rotation.
-    # Drain renamed files before the new inode; offsets only advance over full lines.
     files = sorted(log.parent.glob(log.name + '.*'), key=lambda p: p.stat().st_mtime)
     files.append(log)
     seen = {}
@@ -59,7 +55,6 @@ def collect(log, state):
         raise FileNotFoundError('SSH log missing')
     return state
 
-
 def tick(log, private, textfile):
     statefile = private / 'state.json'
     state = json.loads(statefile.read_text()) if statefile.exists() else {
@@ -83,7 +78,6 @@ def tick(log, private, textfile):
               'lab_hardening_audit_timestamp_seconds ' + str(time.time())]
     atomic(textfile / 'hio_security.prom', '\n'.join(lines) + '\n', 0o644)
 
-
 def self_test():
     import tempfile
     with tempfile.TemporaryDirectory(prefix='hio-ssh-', dir=os.environ.get('TMPDIR')) as directory:
@@ -99,14 +93,13 @@ def self_test():
             stream.write(b'\n')
         log.rename(log.with_suffix('.log.1'))
         log.write_bytes(b'sshd[3]: Failed password for fixture\n')
-        state = json.loads(json.dumps(state))  # restart from durable JSON
+        state = json.loads(json.dumps(state))
         collect(log, state)
         assert state['counts'] == {'publickey': 2, 'password': 1, 'other': 0}
         log.write_bytes(b'noise\n')
         collect(log, state)
         assert state['counts']['password'] == 1
     print('PASS SSH parser: dedup, partial line, rotation, restart, truncation')
-
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['--self-test']:
@@ -119,7 +112,6 @@ if __name__ == '__main__':
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         while True:
             tick(log, private, textfile)
-            # No systemd in containers: supervisor owns this five-second timer.
             subprocess.run(['logrotate', '--state', str(private / 'logrotate.state'),
                             '/etc/logrotate.d/hio-ssh'], stdout=subprocess.DEVNULL,
                            stderr=subprocess.DEVNULL, timeout=10, check=True)

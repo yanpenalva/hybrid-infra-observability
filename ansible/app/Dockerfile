@@ -8,8 +8,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && echo 'ansible ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/ansible \
     && chmod 0440 /etc/sudoers.d/ansible \
     && useradd --system --no-create-home --shell /usr/sbin/nologin demo-app
-# EXCEPTION: unrestricted automation sudo only in disposable teaching nodes.
-# APT and base tag are mutable; digest freezing is a known gap.
 COPY managed-node/entrypoint.sh /usr/local/bin/hio-entrypoint
 COPY managed-node/supervisord.conf /etc/supervisor/supervisord.conf
 COPY app/app.py /opt/demo-app/app.py

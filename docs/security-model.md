@@ -55,6 +55,8 @@ private evidence reference (never values).
 
 ## Open items
 
+- Pin base-image digests and APT packages: the Compose images are tag-pinned
+  only (digest freezing is still a known gap).
 - Repeat the runtime gates on each new host and profile; `docs/demo.md` is the
   procedure. Independent reproduction has not been performed.
 - Persist the host firewall rule that restricts the metrics bind across

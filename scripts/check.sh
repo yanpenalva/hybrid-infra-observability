@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Static phase-one checks. Future ADRs deliberately are NOT required this wave.
-# Optional tools: install versions from ci.yml; HIO_REQUIRE_TOOLS=1 makes absence fatal.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 export PYTHONDONTWRITEBYTECODE=1
@@ -31,7 +29,6 @@ files = [p for p in root.rglob('*') if p.is_file() and not any(
     and not (initialized and ('keys' in p.parts or p in init_generated))]
 for path in files:
     text = path.read_text(errors='replace')
-    # Do not echo offending content: scanners must never print credentials.
     bad = ('BEGIN OPEN'+'SSH', 'admin'+'/admin')
     if any(s in text for s in bad):
         errors.append('forbidden credential marker: ' + str(path))
@@ -54,7 +51,6 @@ def load_yaml(path):
     try:
         import yaml
     except ImportError:
-        # Equivalent parser fallback: Node YAML -> JSON -> Python assertions.
         import json
         try:
             p = subprocess.run(['node', '-e',
@@ -106,8 +102,6 @@ else:
 print('PASS YAML (PyYAML or Node YAML/JSON fallback), resources, source hygiene; ADRs deferred')
 PY
 for script in scripts/*.sh ansible/managed-node/*.sh; do bash -n "$script"; done
-# Phase-2 gates: app unit tests and both read-only probes run without network,
-# cluster or credentials, so they belong in the static gate.
 python3 -B -m unittest discover -s ansible/app
 python3 -B ansible/control-node/ssh_metrics/collector.py --self-test
 python3 -B ansible/control-node/ssh_metrics/audit.py --self-test
@@ -123,8 +117,6 @@ run_tool() {
     echo "SKIP $tool: unavailable; install pinned CI version (not a validated gate)" >&2
   fi
 }
-# yamllint: skip the generated ansible-vault file — it is encrypted output,
-# not YAML text (the Python scan above also skips generated files post-init).
 mapfile -t yamls < <(find . -type f \( -name '*.yml' -o -name '*.yaml' -o -name '*.yml.example' \) \
   -not -path './.local/*' -not -path './.git/*' -not -path '*/.validation/*' \
   -not -path './ansible/control-node/vars/vault.yml')
@@ -156,7 +148,6 @@ if [[ -d .git || -f .git ]]; then
   run_tool gitleaks git --redact --no-banner --log-opts=--all .
 fi
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
-  # Config-only: no daemon, expanded values or real credential reads.
   HIO_METRICS_BIND=127.0.0.1 docker compose -f ansible/docker-compose.yml config --quiet
 elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
   echo 'FAIL Docker Compose unavailable' >&2; exit 1

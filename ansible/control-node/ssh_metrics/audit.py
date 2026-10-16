@@ -12,7 +12,6 @@ import pwd
 import stat
 import subprocess
 
-
 def audit(node):
     controls = {}
 
@@ -76,7 +75,6 @@ def audit(node):
             'controls': controls, 'exceptions': {'sudo_exception':
                 'NOPASSWD:ALL for automation in disposable nodes; not production compliance.'}}
 
-
 if __name__ == '__main__':
     import socket
     import sys
@@ -93,7 +91,6 @@ if __name__ == '__main__':
             assert audit('db')['controls']['shadow_mode'] == 'fail'
         with patch('os.lstat', side_effect=PermissionError):
             assert audit('db')['controls']['shadow_mode'] == 'error'
-        # Rescoped control set: the probe must not silently grow or shrink.
         controls = {'ssh_syntax', 'ssh_effective', 'ssh_dropin', 'ssh_key_modes', 'shadow_mode',
                     'vault_directory', 'credentials_mode', 'logrotate', 'sudo_exception'}
         assert set(audit('db')['controls']) == controls

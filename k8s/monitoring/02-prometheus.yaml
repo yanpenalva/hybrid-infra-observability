@@ -1,6 +1,4 @@
 ---
-# Local UI: kubectl -n monitoring port-forward --address 127.0.0.1 svc/prometheus 9090:9090
-# Single-node lab: 2Gi is a claim, NOT a quota or backup; smoke enforces headroom.
 apiVersion: v1
 kind: PersistentVolume
 metadata:

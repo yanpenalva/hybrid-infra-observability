@@ -23,7 +23,6 @@ tests:
       - eval_time: 35s
         alertname: InstanceDown
         exp_alerts: []
-  # Healthy traffic: 10 req/s, all fast and non-5xx.
   - name: healthy
     interval: 1m
     input_series:
@@ -43,7 +42,6 @@ tests:
         exp_samples:
           - labels: 'demo:slo_burn:rate6h{job="demo-app",node="app",slo="availability"}'
             value: 0
-  # 20% errors and 20% slow requests; reset all counters halfway through.
   - name: firing-both-slos-with-counter-reset
     interval: 1m
     input_series:
@@ -100,7 +98,6 @@ tests:
     alert_rule_test:
       - {eval_time: 6h, alertname: AppSLOBurnRateFast, exp_alerts: []}
       - {eval_time: 6h, alertname: AppSLOBurnRateSlow, exp_alerts: []}
-  # 6h healthy then only 5m bad: short windows alone must NOT fire.
   - name: long-windows-required
     interval: 1m
     input_series:
@@ -113,8 +110,6 @@ tests:
     alert_rule_test:
       - {eval_time: 6h6m, alertname: AppSLOBurnRateFast, exp_alerts: []}
       - {eval_time: 6h6m, alertname: AppSLOBurnRateSlow, exp_alerts: []}
-  # Bad baseline then 35m healthy: recent window must permit recovery even
-  # while both longer windows still have burn > their thresholds.
   - name: short-windows-required-and-recovery
     interval: 1m
     input_series:

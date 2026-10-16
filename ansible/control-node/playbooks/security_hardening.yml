@@ -3,8 +3,6 @@
   hosts: all
   become: true
   vars:
-    # Absolute source root: the template must resolve regardless of the
-    # controller working directory.
     hardening_template_dir: "{{ playbook_dir }}/../templates"
   tasks:
     - name: Load locally generated encrypted fixtures

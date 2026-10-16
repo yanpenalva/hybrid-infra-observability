@@ -9,7 +9,6 @@ from unittest.mock import Mock
 
 from app import Handler, Server
 
-
 class AppTest(unittest.TestCase):
     def setUp(self):
         self.server = Server(("localhost", 0))
@@ -95,10 +94,9 @@ class AppTest(unittest.TestCase):
     def test_chaos_not_available_from_bridge(self):
         handler = Mock()
         handler.path = "/chaos"
-        handler.client_address = ("192.0.2.1", 1234)  # Documentation-only fixture.
+        handler.client_address = ("192.0.2.1", 1234)
         Handler.do_POST(handler)
         handler.reject.assert_called_once_with(403, "chaos_forbidden")
-
 
 if __name__ == "__main__":
     unittest.main()

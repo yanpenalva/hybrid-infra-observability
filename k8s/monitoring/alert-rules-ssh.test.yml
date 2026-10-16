@@ -1,11 +1,7 @@
 ---
-# Promtool unit tests for the security/hardening rules in alert-rules-ssh.yml.
-# Fixtures are synthetic series; labels mirror a textfile scrape (job/node/instance).
-# The unit-test clock starts at the Unix epoch, so time() == eval_time in seconds.
 rule_files: [alert-rules-ssh.yml]
 evaluation_interval: 5s
 tests:
-  # One rejection per 5s sample: increase[1m] crosses 5 after ~30s.
   - name: ssh-rejection-threshold-crossed
     interval: 5s
     input_series:
@@ -18,7 +14,6 @@ tests:
         exp_alerts:
           - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
             exp_annotations: {summary: Bounded SSH rejection threshold crossed}
-  # Same series layout, one single rejection inside the window: increase < 5.
   - name: ssh-rejection-below-threshold
     interval: 5s
     input_series:
@@ -27,7 +22,6 @@ tests:
     alert_rule_test:
       - {eval_time: 1m, alertname: SSHRejectedAttempts, exp_alerts: []}
       - {eval_time: 2m, alertname: SSHRejectedAttempts, exp_alerts: []}
-  # Collector timestamp far behind the evaluation clock: absent, stale or failed.
   - name: ssh-metrics-stale-old-timestamp
     interval: 5s
     input_series:
@@ -44,7 +38,6 @@ tests:
         exp_alerts:
           - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
             exp_annotations: {summary: 'SSH collector absent, stale or failed'}
-  # Target up but collector series missing entirely: absence is never healthy.
   - name: ssh-metrics-stale-absent-series
     interval: 5s
     input_series:
@@ -79,7 +72,6 @@ tests:
         exp_alerts:
           - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
             exp_annotations: {summary: 'SSH collector absent, stale or failed'}
-  # Pass is 1 while healthy; only an exact 0 is drift.
   - name: hardening-drift-only-on-zero
     interval: 5s
     input_series:

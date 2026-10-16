@@ -1,5 +1,4 @@
 ---
-# Deliberate blackhole: receipt via API is the only delivery claim.
 route:
   receiver: blackhole
   group_by: [alertname, node]

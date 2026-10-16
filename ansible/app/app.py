@@ -13,7 +13,6 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-
 class State:
     buckets = (0.05, 0.1, 0.3, 1.0, 2.5)
 
@@ -54,7 +53,6 @@ class State:
                       f"demo_uptime_seconds {time.monotonic() - self.started}"]
             return ("\n".join(lines) + "\n").encode()
 
-
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     request_queue_size = 32
@@ -80,14 +78,13 @@ class Server(ThreadingHTTPServer):
         finally:
             self.slots.release()
 
-
 class Handler(BaseHTTPRequestHandler):
     def setup(self):
         super().setup()
         self.connection.settimeout(3)
 
     def log_message(self, *args):
-        pass  # No URLs, client identities or request bodies in logs.
+        pass
 
     def send_error(self, code, message=None, explain=None):
         if code == 501:
@@ -168,7 +165,6 @@ class Handler(BaseHTTPRequestHandler):
         self.reject(405, "method")
 
     do_PUT = do_DELETE = do_PATCH = do_HEAD = do_OPTIONS = do_TRACE = do_CONNECT = unsupported
-
 
 if __name__ == "__main__":
     Server(("", 8080)).serve_forever()

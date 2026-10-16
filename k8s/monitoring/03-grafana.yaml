@@ -1,7 +1,4 @@
 ---
-# init.sh must create Secret grafana-admin with key admin-password.
-# Local UI: kubectl -n monitoring port-forward --address 127.0.0.1 svc/grafana 3000:3000
-# No dashboard is provisioned; Grafana state is intentionally ephemeral.
 apiVersion: v1
 kind: ConfigMap
 metadata:

@@ -3,7 +3,6 @@
   hosts: all
   become: true
   tasks:
-    # Runtime smoke uses one worker and a ten second deadline, not a daemon.
     - name: Install stress-ng without starting workload
       ansible.builtin.apt:
         name: stress-ng
