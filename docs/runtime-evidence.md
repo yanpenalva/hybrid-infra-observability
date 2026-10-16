@@ -54,3 +54,14 @@ These outcomes match the documented drill contracts in
 execution, follow the prerequisites and ordered commands in
 [`demo.md`](demo.md); a new run writes fresh private evidence under
 `.local/evidence/`.
+
+## Route restriction
+
+A negative-origin check ran the same day. It confirmed the metrics bind is
+not all-interface — it listens only on the profile-network gateway and the
+host LAN address refuses — but it also found that foreign Docker networks on
+this host reach the published ports. The "firewall restricted to Minikube"
+prerequisite is therefore not enforced yet, and the check fails until it is.
+This does not invalidate the positive signal path above; it blocks
+publication per [`publication-checklist.md`](publication-checklist.md) and
+[ADR 0001](adr/0001-local-exposure.md).

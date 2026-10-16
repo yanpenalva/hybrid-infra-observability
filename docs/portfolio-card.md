@@ -27,7 +27,8 @@ are not published with the repository.
 
 Recorded on 2026-10-16: no real credentials were exposed (owner statement),
 the local bootstrap proof passed, no P1 items are open and the remote static
-workflow is green. Remaining before publication: the negative-origin route
-test, independent reproduction, the final publication-commit scan and owner
-authorization. No production-readiness or independent-reproducibility claim is
-made.
+workflow is green. Remaining before publication: restricting the metrics bind
+to Minikube sources (the negative-origin route test failed on this host:
+foreign Docker networks reach the published ports), independent reproduction,
+the final publication-commit scan and owner authorization. No
+production-readiness or independent-reproducibility claim is made.

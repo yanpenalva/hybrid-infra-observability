@@ -118,7 +118,9 @@ and sanitized — never committed (`.local/` is git-ignored).
 - No provisioned dashboard, no external alert delivery; Alertmanager is stateless.
 - Unrestricted automation sudo is an explicit lab exception, not hardening success.
 - Exposure, resource budgets, retention, and driver routing were checked only
-  on the local profile; repeat runtime verification on each target machine.
+  on the local profile; the 2026-10-16 negative-origin check found the metrics
+  bind is not yet source-restricted to Minikube, and runtime verification must
+  be repeated on each target machine.
 - Fresh local material does not revoke credentials exposed elsewhere; the owner
   confirmed no real credentials were exposed for this project, and independent
   reproduction plus the final publication review still block release.

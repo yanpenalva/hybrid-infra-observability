@@ -20,14 +20,20 @@ Status: blocked for publication. A local Gate 1 + Gate 2 run passed on
   distributable tree or in the five commits examined; the built Compose images
   contain no private keys, vault files or generated credentials, `/etc/ssh`
   host keys are runtime-only and the control-node image bakes no playbooks.
-- **Metrics route:** Gate 2 exercised the positive Docker-to-Minikube path
-  (`baseline targets UP`). The negative test from a forbidden origin is not
-  part of the smoke and was not executed.
+- **Metrics route (positive):** Gate 2 exercised the Docker-to-Minikube path
+  (`baseline targets UP`).
+- **Metrics route (negative):** executed 2026-10-16 with private evidence in
+  `.local/evidence/route-negative-20261016.json`. The bind listens only on the
+  profile-network gateway (the host LAN address refuses on all three ports), but
+  foreign Docker networks on this host reach the published ports — the required
+  firewall restriction to Minikube is **not** in place. This gate currently
+  fails.
 
 ## Remaining release gates
 
+- Restrict the metrics bind sources to Minikube (host firewall) and re-run the
+  negative-origin route test (ADR 0001) until it passes.
 - Independent reproduction on another host or profile.
-- Negative-origin route test for the metrics bind (ADR 0001).
 - Final content/history/package scan re-run at the publication commit.
 - Owner authorization.
 

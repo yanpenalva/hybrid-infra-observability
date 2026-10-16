@@ -8,8 +8,10 @@ the `instance-down` and `ssh` drills passed, and the CPU drill failed closed as
 `.local/evidence/` and are not committed. The owner confirmed no real
 credentials were ever exposed (nothing to revoke) and no open P1 items, and the
 local bootstrap proof (two byte-identical `make init` runs) is recorded. Still
-open: the negative-origin route test, independent reproduction, the final
-publication-commit scan and owner authorization (see
+open: restricting the metrics bind to Minikube sources (the negative-origin
+route test executed on 2026-10-16 and failed: foreign Docker networks reach the
+published ports), independent reproduction, the final publication-commit scan
+and owner authorization (see
 `docs/publication-checklist.md`). The remote static workflow also passed for
 commit `41fc17d` (GitHub Actions run `38938744660`); this does not clear the
 remaining release gates.
@@ -26,9 +28,11 @@ remaining release gates.
 - Kubernetes (`hybrid-infra-observability`, dedicated Minikube profile/context): Prometheus,
   Grafana and Alertmanager are ClusterIP-only; operator access is loopback-only port-forward.
 - Metrics route: one bridge bind (`HIO_METRICS_BIND`), never all-interface;
-  the local Gate 2 smoke exercised the Docker-to-Minikube metrics route. This is
-  evidence for that local profile only; repeat verification on another host or
-  profile remains required.
+  the local Gate 2 smoke exercised the Docker-to-Minikube metrics route. The
+  2026-10-16 negative-origin test confirmed no all-interface listener (the LAN
+  address refuses) but found that foreign Docker networks on this host reach
+  the published ports, so the firewall restriction to Minikube is not enforced
+  yet; private evidence in `.local/evidence/route-negative-20261016.json`.
 - Alert path: the blackhole receiver demonstrates receipt through the Alertmanager API only —
   no external delivery is promised, and Alertmanager is intended to be stateless.
 
@@ -57,8 +61,10 @@ private evidence reference (never values) before publication.
 
 ## Open items
 
-- Run the negative-origin route test for the metrics bind and re-run the final
-  content/history/package scan at the publication commit.
+- Run (and pass) the negative-origin route test for the metrics bind with the
+  host firewall restricted to Minikube sources, and re-run the final
+  content/history/package scan at the publication commit. The 2026-10-16 test
+  failed: the bind is not all-interface, but foreign Docker networks reach it.
 - Complete independent reproduction; track these in
   `docs/publication-checklist.md`.
 - Keep private evidence private. Local execution is not independent
