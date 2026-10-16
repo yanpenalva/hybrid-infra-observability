@@ -4,7 +4,7 @@ ROOT := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 PROFILE := hybrid-infra-observability
 COMPOSE = docker compose --project-name hybrid-infra-observability -f ansible/docker-compose.yml
 .DEFAULT_GOAL := check
-.PHONY: init up monitoring check smoke down firewall firewall-revert route-check
+.PHONY: init up monitoring check verify smoke down firewall firewall-revert route-check
 
 init:
 	@cd "$(ROOT)" && bash scripts/init.sh
@@ -53,6 +53,9 @@ monitoring:
 
 check:
 	@cd "$(ROOT)" && bash scripts/check.sh
+
+verify:
+	@cd "$(ROOT)" && bash scripts/verify.sh
 
 smoke:
 	@cd "$(ROOT)" && test -f .local/init-complete && bash scripts/smoke.sh
