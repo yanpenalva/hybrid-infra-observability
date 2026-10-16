@@ -1,0 +1,86 @@
+---
+# Promtool unit tests for the demo short-window SLO overlay.
+rule_files: [demo-slo-overlay.yml]
+evaluation_interval: 5s
+tests:
+  # 1 req/s, every request fast and non-5xx: no burn, no alert.
+  - name: demo-healthy-traffic
+    interval: 30s
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+30x20'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+0x20'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+30x20'
+    alert_rule_test:
+      - {eval_time: 2m, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+      - {eval_time: 5m, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+    promql_expr_test:
+      - expr: 'demo:slo_short_burn:rate1m{slo="availability"}'
+        eval_time: 5m
+        exp_samples:
+          - labels: 'demo:slo_short_burn:rate1m{job="demo-app",node="app",slo="availability"}'
+            value: 0
+  # 1 req/s, every request 503: availability burn is 100 (the 1% budget),
+  # latency burn stays 0 because failures are fast.
+  - name: demo-failure-burns-availability
+    interval: 30s
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+0x20'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+30x20'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+30x20'
+    alert_rule_test:
+      - {eval_time: 30s, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+      - eval_time: 2m
+        alertname: DemoSLOBurnRateShortWindow
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, slo: availability, severity: warning}
+            exp_annotations: {summary: Demo short-window app SLO burn (1m window)}
+    promql_expr_test:
+      - expr: 'round(demo:slo_short_burn:rate1m{slo="availability"}, 0.001)'
+        eval_time: 2m
+        exp_samples:
+          - labels: '{job="demo-app",node="app",slo="availability"}'
+            value: 100
+  # 0.05 req/s of pure errors is below the 0.1 req/s guard: no alert.
+  - name: demo-low-traffic-guard
+    interval: 30s
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+0x20'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+1.5x20'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+1.5x20'
+    alert_rule_test:
+      - {eval_time: 3m, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+      - {eval_time: 10m, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+  # 5m of failures then 3m healthy: the short window clears the alert.
+  - name: demo-recovery-clears-short-window
+    interval: 30s
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+0x10 900+30x6'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+30x10 300+0x6'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+30x10 900+30x6'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: DemoSLOBurnRateShortWindow
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, slo: availability, severity: warning}
+            exp_annotations: {summary: Demo short-window app SLO burn (1m window)}
+      - {eval_time: 8m, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+  # No series at all: absence is not a healthy claim, it is simply no data.
+  - name: demo-absent-is-no-data
+    interval: 30s
+    input_series: []
+    alert_rule_test:
+      - {eval_time: 5m, alertname: DemoSLOBurnRateShortWindow, exp_alerts: []}
+    promql_expr_test:
+      - {eval_time: 5m, expr: 'demo:slo_short_burn:rate1m', exp_samples: []}

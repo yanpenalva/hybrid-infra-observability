@@ -1,0 +1,108 @@
+---
+- name: Deploy supervised SSH textfile timer on disposable nodes
+  hosts: all
+  become: true
+  tasks:
+    - name: Install rotation support
+      ansible.builtin.apt:
+        name: logrotate
+        state: present
+    - name: Create private collector and log directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+      loop:
+        - /var/lib/hio-ssh
+        - /var/log/hio-ssh
+        - /usr/local/lib/hio-ssh
+    - name: Create exporter-readable textfile directory
+      ansible.builtin.file:
+        path: /var/lib/prometheus/node-exporter
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Install collector and read-only audit probe
+      ansible.builtin.copy:
+        src: "../ssh_metrics/{{ item }}"
+        dest: "/usr/local/lib/hio-ssh/{{ item }}"
+        owner: root
+        group: root
+        mode: '0700'
+      loop: [collector.py, audit.py]
+      notify: Reload supervised signals
+    - name: Enable verbose failed-publickey records without changing authentication policy
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/01-hio-metrics.conf
+        content: "LogLevel VERBOSE\n"
+        owner: root
+        group: root
+        mode: '0644'
+        validate: /usr/sbin/sshd -t -f %s
+      notify: Reload supervised signals
+    - name: Capture sshd stderr privately with bounded supervisor rotation
+      ansible.builtin.replace:
+        path: /etc/supervisor/supervisord.conf
+        regexp: '(?s)(\[program:sshd\].*?stderr_logfile=)[^\n]+\nstderr_logfile_maxbytes=[^\n]+(?:\nstderr_logfile_backups=[^\n]+)?'
+        replace: '\g<1>/var/log/hio-ssh/auth.log\nstderr_logfile_maxbytes=1MB\nstderr_logfile_backups=2'
+      notify: Reload supervised signals
+    - name: Keep supervisor-created authentication logs private
+      ansible.builtin.lineinfile:
+        path: /etc/supervisor/supervisord.conf
+        insertafter: '^\[supervisord\]$'
+        regexp: '^umask='
+        line: 'umask=0077'
+      notify: Reload supervised signals
+    - name: Enable exporter textfile collector
+      ansible.builtin.replace:
+        path: /etc/supervisor/supervisord.conf
+        regexp: '^command=/usr/bin/prometheus-node-exporter(?: --collector.textfile.directory=\S+)?$'
+        replace: 'command=/usr/bin/prometheus-node-exporter --collector.textfile.directory=/var/lib/prometheus/node-exporter'
+      notify: Reload supervised signals
+    - name: Install supervisor-owned timer
+      ansible.builtin.blockinfile:
+        path: /etc/supervisor/supervisord.conf
+        marker: '# {mark} HIO SSH METRICS TIMER'
+        block: |
+          [program:ssh_metrics]
+          command=/usr/bin/python3 -B /usr/local/lib/hio-ssh/collector.py
+          user=root
+          autorestart=true
+          stopasgroup=true
+          killasgroup=true
+          stdout_logfile=/dev/null
+          stderr_logfile=/dev/null
+      notify: Reload supervised signals
+    - name: Install private log rotation policy
+      ansible.builtin.copy:
+        dest: /etc/logrotate.d/hio-ssh
+        owner: root
+        group: root
+        mode: '0644'
+        content: |
+          /var/log/hio-ssh/auth.log {
+              daily
+              rotate 2
+              missingok
+              notifempty
+              nocompress
+              create 0600 root root
+              su root root
+              postrotate
+                  kill -USR2 "$(supervisorctl pid)"
+              endscript
+          }
+    - name: Apply supervised timer
+      ansible.builtin.meta: flush_handlers
+    - name: Verify supervised collector is running
+      ansible.builtin.command: supervisorctl status ssh_metrics
+      register: ssh_metrics_status
+      changed_when: false
+      failed_when: "'RUNNING' not in ssh_metrics_status.stdout"
+  handlers:
+    - name: Reload supervised signals
+      ansible.builtin.shell: supervisorctl reread && supervisorctl update && supervisorctl restart ssh_metrics
+      changed_when: true

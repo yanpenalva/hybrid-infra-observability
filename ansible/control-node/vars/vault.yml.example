@@ -1,0 +1,6 @@
+---
+# Inert documentation, not credentials and not a valid input to hardening.
+vault_security_admin_user: REPLACE_WITH_SYNTHETIC_USER
+vault_security_admin_password: REPLACE_WITH_SYNTHETIC_SHA512_CRYPT_HASH
+vault_app_secret_key: REPLACE_WITH_RANDOM_SYNTHETIC_VALUE
+vault_db_backup_token: REPLACE_WITH_RANDOM_SYNTHETIC_VALUE

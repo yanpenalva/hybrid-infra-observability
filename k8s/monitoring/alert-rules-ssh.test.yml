@@ -1,0 +1,119 @@
+---
+# Promtool unit tests for the security/hardening rules in alert-rules-ssh.yml.
+# Fixtures are synthetic series; labels mirror a textfile scrape (job/node/instance).
+# The unit-test clock starts at the Unix epoch, so time() == eval_time in seconds.
+rule_files: [alert-rules-ssh.yml]
+evaluation_interval: 5s
+tests:
+  # One rejection per 5s sample: increase[1m] crosses 5 after ~30s.
+  - name: ssh-rejection-threshold-crossed
+    interval: 5s
+    input_series:
+      - series: 'lab_ssh_auth_failures_total{job="managed-nodes",node="app",instance="fixture:9101",reason="publickey"}'
+        values: '0+1x30'
+    alert_rule_test:
+      - {eval_time: 15s, alertname: SSHRejectedAttempts, exp_alerts: []}
+      - eval_time: 50s
+        alertname: SSHRejectedAttempts
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
+            exp_annotations: {summary: Bounded SSH rejection threshold crossed}
+  # Same series layout, one single rejection inside the window: increase < 5.
+  - name: ssh-rejection-below-threshold
+    interval: 5s
+    input_series:
+      - series: 'lab_ssh_auth_failures_total{job="managed-nodes",node="app",instance="fixture:9101",reason="password"}'
+        values: '0 0 0 0 0 0 0 0 0 0 0 0 0 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - {eval_time: 1m, alertname: SSHRejectedAttempts, exp_alerts: []}
+      - {eval_time: 2m, alertname: SSHRejectedAttempts, exp_alerts: []}
+  # Collector timestamp far behind the evaluation clock: absent, stale or failed.
+  - name: ssh-metrics-stale-old-timestamp
+    interval: 5s
+    input_series:
+      - series: 'up{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1x40'
+      - series: 'lab_ssh_collector_timestamp_seconds{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '0x40'
+      - series: 'lab_ssh_collector_error{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '0x40'
+    alert_rule_test:
+      - {eval_time: 30s, alertname: SSHMetricsStale, exp_alerts: []}
+      - eval_time: 75s
+        alertname: SSHMetricsStale
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
+            exp_annotations: {summary: 'SSH collector absent, stale or failed'}
+  # Target up but collector series missing entirely: absence is never healthy.
+  - name: ssh-metrics-stale-absent-series
+    interval: 5s
+    input_series:
+      - series: 'up{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: SSHMetricsStale
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
+            exp_annotations: {summary: 'SSH collector absent, stale or failed'}
+  - name: ssh-metrics-fresh-collector
+    interval: 5s
+    input_series:
+      - series: 'up{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1x30'
+      - series: 'lab_ssh_collector_timestamp_seconds{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1000x30'
+      - series: 'lab_ssh_collector_error{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '0x30'
+    alert_rule_test:
+      - {eval_time: 1m, alertname: SSHMetricsStale, exp_alerts: []}
+      - {eval_time: 2m, alertname: SSHMetricsStale, exp_alerts: []}
+  - name: ssh-metrics-collector-error
+    interval: 5s
+    input_series:
+      - series: 'lab_ssh_collector_error{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: SSHMetricsStale
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
+            exp_annotations: {summary: 'SSH collector absent, stale or failed'}
+  # Pass is 1 while healthy; only an exact 0 is drift.
+  - name: hardening-drift-only-on-zero
+    interval: 5s
+    input_series:
+      - series: 'lab_hardening_control_pass{job="managed-nodes",node="app",instance="fixture:9101",control="logrotate"}'
+        values: '1 1 1 1 1 1 0 0 0 0 0 0 0 0'
+    alert_rule_test:
+      - {eval_time: 25s, alertname: HardeningDrift, exp_alerts: []}
+      - eval_time: 50s
+        alertname: HardeningDrift
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', control: logrotate, severity: warning}
+            exp_annotations: {summary: Read-only audit found failed or unavailable control}
+  - name: hardening-audit-stale-old-timestamp
+    interval: 5s
+    input_series:
+      - series: 'up{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1x40'
+      - series: 'lab_hardening_audit_timestamp_seconds{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '0x40'
+    alert_rule_test:
+      - {eval_time: 30s, alertname: HardeningAuditStale, exp_alerts: []}
+      - eval_time: 90s
+        alertname: HardeningAuditStale
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
+            exp_annotations: {summary: Hardening audit absent or stale}
+  - name: hardening-audit-stale-absent-series
+    interval: 5s
+    input_series:
+      - series: 'up{job="managed-nodes",node="app",instance="fixture:9101"}'
+        values: '1x20'
+    alert_rule_test:
+      - eval_time: 30s
+        alertname: HardeningAuditStale
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9101', severity: warning}
+            exp_annotations: {summary: Hardening audit absent or stale}

@@ -1,0 +1,14 @@
+---
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: monitoring
+resources:
+  - 01-namespace.yaml
+  - 02-prometheus.yaml
+  - 03-grafana.yaml
+  - 04-alertmanager.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files: [prometheus.yml, alert-rules.yml, alert-rules-ssh.yml]
+  - name: alertmanager-config
+    files: [alertmanager.yml]

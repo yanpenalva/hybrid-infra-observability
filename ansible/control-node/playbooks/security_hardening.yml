@@ -1,0 +1,88 @@
+---
+- name: Apply disposable lab baseline
+  hosts: all
+  become: true
+  tasks:
+    - name: Load locally generated encrypted fixtures
+      ansible.builtin.include_vars:
+        file: ../vars/vault.yml
+      no_log: true
+      diff: false
+    - name: Validate synthetic one-line credential contract
+      ansible.builtin.assert:
+        that:
+          - vault_security_admin_user is match('^[a-z][a-z0-9_]{0,30}$')
+          - vault_security_admin_password is match('^\$6\$[./A-Za-z0-9$]+$')
+          - vault_app_secret_key is match('^[A-Za-z0-9_-]{32,128}$')
+          - vault_db_backup_token is match('^[A-Za-z0-9_-]{32,128}$')
+      no_log: true
+      diff: false
+    - name: Create security user without administrative sudo grant
+      ansible.builtin.user:
+        name: "{{ vault_security_admin_user }}"
+        password: "{{ vault_security_admin_password }}"
+        shell: /bin/bash
+        create_home: true
+      no_log: true
+      diff: false
+    - name: Remove legacy security user sudo exception
+      ansible.builtin.file:
+        path: "/etc/sudoers.d/{{ vault_security_admin_user }}"
+        state: absent
+      no_log: true
+      diff: false
+    - name: Report automation privilege exception honestly
+      ansible.builtin.debug:
+        msg: "EXCEPTION: ansible has unrestricted passwordless sudo in disposable app/db; not production compliance."
+    - name: Enforce earliest SSH drop-in
+      ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/00-hio.conf
+        content: |
+          StrictModes yes
+          PasswordAuthentication no
+          KbdInteractiveAuthentication no
+          PermitRootLogin no
+          X11Forwarding no
+          MaxAuthTries 3
+        owner: root
+        group: root
+        mode: '0644'
+      notify: Restart supervised sshd
+    - name: Validate complete SSH configuration before restart
+      ansible.builtin.command: /usr/sbin/sshd -t
+      changed_when: false
+    - name: Read effective SSH policy
+      ansible.builtin.command: /usr/sbin/sshd -T
+      changed_when: false
+      register: ssh_policy
+    - name: Assert effective policy
+      ansible.builtin.assert:
+        that:
+          - "'strictmodes yes' in ssh_policy.stdout_lines"
+          - "'passwordauthentication no' in ssh_policy.stdout_lines"
+          - "'permitrootlogin no' in ssh_policy.stdout_lines"
+    - name: Create private fixture directory
+      ansible.builtin.file:
+        path: /etc/security/vault
+        state: directory
+        owner: root
+        group: root
+        mode: '0700'
+    - name: Deploy synthetic credentials with no business consumer
+      ansible.builtin.template:
+        src: ../templates/credentials.env.j2
+        dest: /etc/security/vault/credentials.env
+        owner: root
+        group: root
+        mode: '0600'
+      no_log: true
+      diff: false
+    - name: Apply SSH handler before reconnection
+      ansible.builtin.meta: flush_handlers
+    - name: Verify reconnection
+      ansible.builtin.wait_for_connection:
+        timeout: 30
+  handlers:
+    - name: Restart supervised sshd
+      ansible.builtin.command: supervisorctl restart sshd
+      changed_when: true

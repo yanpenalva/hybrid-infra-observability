@@ -1,0 +1,22 @@
+---
+- name: Verify supervised exporter
+  hosts: all
+  become: true
+  tasks:
+    - name: Ensure image-provided exporter is installed
+      ansible.builtin.apt:
+        name: prometheus-node-exporter
+        state: present
+    - name: Read supervised exporter state
+      ansible.builtin.command: supervisorctl status node_exporter
+      register: exporter_state
+      changed_when: false
+      failed_when: "'RUNNING' not in exporter_state.stdout"
+    - name: Verify metrics endpoint
+      ansible.builtin.uri:
+        url: http://localhost:9100/metrics
+        status_code: 200
+      register: metrics_result
+      until: metrics_result.status == 200
+      retries: 10
+      delay: 2

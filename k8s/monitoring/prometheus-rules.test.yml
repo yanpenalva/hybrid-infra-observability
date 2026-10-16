@@ -1,0 +1,196 @@
+---
+rule_files: [alert-rules.yml]
+evaluation_interval: 5s
+tests:
+  - interval: 5s
+    input_series:
+      - series: 'up{job="managed-nodes",node="app",instance="fixture:9100"}'
+        values: '1 0 0 0 0 0 1 1'
+    alert_rule_test:
+      - eval_time: 15s
+        alertname: InstanceDown
+        exp_alerts: []
+      - eval_time: 20s
+        alertname: InstanceDown
+        exp_alerts:
+          - exp_labels:
+              job: managed-nodes
+              node: app
+              instance: fixture:9100
+              severity: critical
+            exp_annotations:
+              summary: Managed node exporter unavailable
+      - eval_time: 35s
+        alertname: InstanceDown
+        exp_alerts: []
+  # Healthy traffic: 10 req/s, all fast and non-5xx.
+  - name: healthy
+    interval: 1m
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+600x370'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+0x370'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+600x370'
+    alert_rule_test:
+      - {eval_time: 6h, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 6h, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+      - {eval_time: 6h, alertname: AppMetricsMissing, exp_alerts: []}
+    promql_expr_test:
+      - expr: 'demo:slo_burn:rate6h{slo="availability"}'
+        eval_time: 6h
+        exp_samples:
+          - labels: 'demo:slo_burn:rate6h{job="demo-app",node="app",slo="availability"}'
+            value: 0
+  # 20% errors and 20% slow requests; reset all counters halfway through.
+  - name: firing-both-slos-with-counter-reset
+    interval: 1m
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+480x180 0+480x190'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+120x180 0+120x190'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+480x180 0+480x190'
+    alert_rule_test:
+      - {eval_time: 1m, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 5m, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+      - eval_time: 6h
+        alertname: AppSLOBurnRateFast
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, slo: availability, severity: critical}
+            exp_annotations: {summary: Synthetic app SLO fast burn (5m and 1h)}
+          - exp_labels: {job: demo-app, node: app, slo: latency, severity: critical}
+            exp_annotations: {summary: Synthetic app SLO fast burn (5m and 1h)}
+      - eval_time: 6h
+        alertname: AppSLOBurnRateSlow
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, slo: availability, severity: warning}
+            exp_annotations: {summary: Synthetic app SLO slow burn (30m and 6h)}
+          - exp_labels: {job: demo-app, node: app, slo: latency, severity: warning}
+            exp_annotations: {summary: Synthetic app SLO slow burn (30m and 6h)}
+    promql_expr_test:
+      - expr: 'round(demo:slo_burn:rate6h{slo="availability"}, 0.001)'
+        eval_time: 6h
+        exp_samples:
+          - labels: '{job="demo-app",node="app",slo="availability"}'
+            value: 20
+  - name: below-both-thresholds
+    interval: 1m
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+570x370'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+30x370'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+570x370'
+    alert_rule_test:
+      - {eval_time: 6h, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 6h, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+  - name: low-traffic-even-with-all-errors
+    interval: 1m
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+0x370'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+1x370'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+0x370'
+    alert_rule_test:
+      - {eval_time: 6h, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 6h, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+  # 6h healthy then only 5m bad: short windows alone must NOT fire.
+  - name: long-windows-required
+    interval: 1m
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+600x360 216000+0x10'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+0x360 0+600x10'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+600x360 216000+0x10'
+    alert_rule_test:
+      - {eval_time: 6h6m, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 6h6m, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+  # Bad baseline then 35m healthy: recent window must permit recovery even
+  # while both longer windows still have burn > their thresholds.
+  - name: short-windows-required-and-recovery
+    interval: 1m
+    input_series:
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+480x360 172800+600x40'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+120x360 43200+0x40'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+480x360 172800+600x40'
+    alert_rule_test:
+      - {eval_time: 6h10m, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 6h35m, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+  - name: absent-is-not-healthy
+    interval: 1m
+    input_series: []
+    alert_rule_test:
+      - {eval_time: 5m, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 5m, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+      - eval_time: 5m
+        alertname: AppDown
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, severity: critical}
+            exp_annotations: {summary: Synthetic app scrape unavailable}
+      - eval_time: 5m
+        alertname: AppMetricsMissing
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, severity: critical}
+            exp_annotations: {summary: Synthetic app SLO data or traffic missing}
+    promql_expr_test:
+      - {eval_time: 5m, expr: 'demo:slo_burn:rate5m', exp_samples: []}
+  - name: no-traffic-is-unknown-not-nan
+    interval: 1m
+    input_series:
+      - series: 'up{job="demo-app",node="app",instance="fixture:8080"}'
+        values: '1+0x10'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="2xx"}'
+        values: '0+0x10'
+      - series: 'demo_http_requests_total{job="demo-app",node="app",route="/health",status_class="5xx"}'
+        values: '0+0x10'
+      - series: 'demo_http_request_duration_seconds_bucket{job="demo-app",node="app",route="/health",le="0.3"}'
+        values: '0+0x10'
+    alert_rule_test:
+      - {eval_time: 5m, alertname: AppDown, exp_alerts: []}
+      - {eval_time: 5m, alertname: AppSLOBurnRateFast, exp_alerts: []}
+      - {eval_time: 5m, alertname: AppSLOBurnRateSlow, exp_alerts: []}
+      - eval_time: 5m
+        alertname: AppMetricsMissing
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, severity: critical}
+            exp_annotations: {summary: Synthetic app SLO data or traffic missing}
+    promql_expr_test:
+      - {eval_time: 5m, expr: 'demo:slo_burn:rate5m', exp_samples: []}
+  - name: scrape-down-then-recovered
+    interval: 5s
+    input_series:
+      - series: 'up{job="demo-app",node="app",instance="fixture:8080"}'
+        values: '1 0 0 0 0 0 1 1'
+    alert_rule_test:
+      - {eval_time: 15s, alertname: AppDown, exp_alerts: []}
+      - eval_time: 20s
+        alertname: AppDown
+        exp_alerts:
+          - exp_labels: {job: demo-app, node: app, severity: critical}
+            exp_annotations: {summary: Synthetic app scrape unavailable}
+      - {eval_time: 35s, alertname: AppDown, exp_alerts: []}
+  - name: cpu-threshold-and-for
+    interval: 15s
+    input_series:
+      - series: 'node_cpu_seconds_total{job="managed-nodes",node="app",instance="fixture:9100",cpu="0",mode="idle"}'
+        values: '0+1.5x12'
+      - series: 'node_cpu_seconds_total{job="managed-nodes",node="db",instance="fixture-db:9100",cpu="0",mode="idle"}'
+        values: '0+7.5x12'
+    alert_rule_test:
+      - {eval_time: 30s, alertname: HighCPUUsage, exp_alerts: []}
+      - eval_time: 2m
+        alertname: HighCPUUsage
+        exp_alerts:
+          - exp_labels: {job: managed-nodes, node: app, instance: 'fixture:9100', severity: warning}
+            exp_annotations: {summary: Managed node CPU above 80 percent}

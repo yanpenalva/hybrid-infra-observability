@@ -1,0 +1,26 @@
+---
+# Demo-only overlay: short-window copies of the app SLO burn-rate rules so the
+# F4 failure proof fits a short demonstration instead of the canonical 6h scope.
+# It is NOT part of the canonical ConfigMap rule_files; the demo applies it to
+# the running Prometheus and removes it on exit (scripts/smoke.sh finally/trap
+# re-applies k8s/monitoring). Names are deliberately distinct from
+# k8s/monitoring/alert-rules.yml so both sets can coexist while it is loaded.
+groups:
+  - name: demo-app-slo-short-windows
+    rules:
+      - record: demo:slo_short_requests:rate1m
+        expr: sum by (job, node) (rate(demo_http_requests_total{job="demo-app",route="/health"}[1m]))
+      - record: demo:slo_short_burn:rate1m
+        labels: {slo: availability}
+        expr: sum by (job, node) (rate(demo_http_requests_total{job="demo-app",route="/health",status_class="5xx"}[1m])) / clamp_min(demo:slo_short_requests:rate1m, 1e-9) / 0.01 and on (job, node) (demo:slo_short_requests:rate1m > 0)
+      - record: demo:slo_short_burn:rate1m
+        labels: {slo: latency}
+        expr: clamp_min(1 - sum by (job, node) (rate(demo_http_request_duration_seconds_bucket{job="demo-app",route="/health",le="0.3"}[1m])) / clamp_min(demo:slo_short_requests:rate1m, 1e-9), 0) / 0.01 and on (job, node) (demo:slo_short_requests:rate1m > 0)
+      # Same 1% budget and same 0.1 req/s guard as the canonical rules.
+      - alert: DemoSLOBurnRateShortWindow
+        expr: demo:slo_short_burn:rate1m > 14.4 and on (job, node) (demo:slo_short_requests:rate1m >= 0.1)
+        for: 30s
+        labels:
+          severity: warning
+        annotations:
+          summary: Demo short-window app SLO burn (1m window)

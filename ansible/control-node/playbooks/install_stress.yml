@@ -1,0 +1,12 @@
+---
+- name: Install bounded stress utility
+  hosts: all
+  become: true
+  tasks:
+    - name: Install stress-ng without starting workload
+      ansible.builtin.apt:
+        name: stress-ng
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+    # Runtime smoke uses one worker and a ten second deadline, not a daemon.

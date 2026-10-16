@@ -1,0 +1,14 @@
+ansible/keys/
+**/.vault_pass
+**/vars/vault.yml
+.local/
+**/.env
+**/.env.*
+!**/.env.example
+*.retry
+*.log
+__pycache__/
+.DS_Store
+.git/
+docs/evidence/
+**/evidence/

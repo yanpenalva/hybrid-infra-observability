@@ -1,0 +1,32 @@
+---
+groups:
+  - name: lab-security-signals
+    rules:
+      - alert: SSHRejectedAttempts
+        expr: sum by (node, job, instance) (increase(lab_ssh_auth_failures_total{job="managed-nodes"}[1m])) >= 5
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: Bounded SSH rejection threshold crossed
+      - alert: SSHMetricsStale
+        expr: (time() - lab_ssh_collector_timestamp_seconds{job="managed-nodes"} > 45) or (up{job="managed-nodes"} unless on (node) lab_ssh_collector_timestamp_seconds) or (lab_ssh_collector_error{job="managed-nodes"} > 0)
+        for: 15s
+        labels:
+          severity: warning
+        annotations:
+          summary: SSH collector absent, stale or failed
+      - alert: HardeningDrift
+        expr: lab_hardening_control_pass{job="managed-nodes"} == 0
+        for: 10s
+        labels:
+          severity: warning
+        annotations:
+          summary: Read-only audit found failed or unavailable control
+      - alert: HardeningAuditStale
+        expr: (time() - lab_hardening_audit_timestamp_seconds{job="managed-nodes"} > 60) or (up{job="managed-nodes"} unless on (node) lab_hardening_audit_timestamp_seconds)
+        for: 15s
+        labels:
+          severity: warning
+        annotations:
+          summary: Hardening audit absent or stale

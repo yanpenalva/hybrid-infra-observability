@@ -1,0 +1,27 @@
+---
+global:
+  scrape_interval: 5s
+  scrape_timeout: 3s
+  evaluation_interval: 5s
+rule_files: [alert-rules.yml, alert-rules-ssh.yml]
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+scrape_configs:
+  - job_name: demo-app
+    static_configs:
+      - targets: ['metrics-gateway.hio.test:8080']
+        labels:
+          node: app
+  # Operator must resolve this lab-only DNS name to the verified bridge bind
+  # from Pods, and restrict firewall sources to the dedicated Minikube node.
+  # No universal host gateway is assumed; failure blocks runtime/publication.
+  - job_name: managed-nodes
+    static_configs:
+      - targets: ['metrics-gateway.hio.test:9101']
+        labels:
+          node: app
+      - targets: ['metrics-gateway.hio.test:9102']
+        labels:
+          node: db
