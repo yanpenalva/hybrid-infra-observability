@@ -1,9 +1,18 @@
 # Security model
 
-Status: wave 1 stub; revocations pending.
-This file is a plan and a register, not evidence. No control listed here is
-certified: runtime validation, external revocations and the publication gates
-are still open (README "Limits and non-promises"; docs/publication-checklist.md).
+Status: local Gate 1 + Gate 2 execution recorded on 2026-10-16; publication is
+still blocked. This model documents trust boundaries and limitations; it does
+not certify production security. Gate 1 and Gate 2 passed on the local profile;
+the `instance-down` and `ssh` drills passed, and the CPU drill failed closed as
+`cpu-bounded`. The supporting timelines and audits are private under
+`.local/evidence/` and are not committed. The owner confirmed no real
+credentials were ever exposed (nothing to revoke) and no open P1 items, and the
+local bootstrap proof (two byte-identical `make init` runs) is recorded. Still
+open: the negative-origin route test, independent reproduction, the final
+publication-commit scan and owner authorization (see
+`docs/publication-checklist.md`). The remote static workflow also passed for
+commit `41fc17d` (GitHub Actions run `38938744660`); this does not clear the
+remaining release gates.
 
 ## Trust boundaries
 
@@ -16,8 +25,10 @@ are still open (README "Limits and non-promises"; docs/publication-checklist.md)
   `control-node` mounts playbooks read-only.
 - Kubernetes (`hybrid-infra-observability`, dedicated Minikube profile/context): Prometheus,
   Grafana and Alertmanager are ClusterIP-only; operator access is loopback-only port-forward.
-- Metrics route: one verified bridge bind (`HIO_METRICS_BIND`), never all-interface;
-  positive/negative route tests are release blockers and remain unverified.
+- Metrics route: one bridge bind (`HIO_METRICS_BIND`), never all-interface;
+  the local Gate 2 smoke exercised the Docker-to-Minikube metrics route. This is
+  evidence for that local profile only; repeat verification on another host or
+  profile remains required.
 - Alert path: the blackhole receiver demonstrates receipt through the Alertmanager API only —
   no external delivery is promised, and Alertmanager is intended to be stateless.
 
@@ -35,8 +46,10 @@ Privilege separation on the teaching nodes is out of scope for wave 1.
 
 ## Revoked categories register
 
-Empty: no category revoked yet. Revocations are external work; until each is recorded here with
-scope, date and a private evidence reference (never values), publication stays blocked.
+Empty by owner statement: on 2026-10-16 the owner confirmed that no real
+credentials were ever exposed for this project, so no revocation applies. If
+that statement changes, record each category here with scope, date and a
+private evidence reference (never values) before publication.
 
 | Category | Scope | Revoked at | Evidence (private) |
 |----------|-------|------------|--------------------|
@@ -44,5 +57,9 @@ scope, date and a private evidence reference (never values), publication stays b
 
 ## Open items
 
-- Record revocations (this register) and run the final content/history/package scan.
-- Gate 1 runtime reproduction pending; P1 items tracked by docs/publication-checklist.md.
+- Run the negative-origin route test for the metrics bind and re-run the final
+  content/history/package scan at the publication commit.
+- Complete independent reproduction; track these in
+  `docs/publication-checklist.md`.
+- Keep private evidence private. Local execution is not independent
+  reproduction or publication approval.

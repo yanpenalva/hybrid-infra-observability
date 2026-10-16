@@ -119,12 +119,14 @@ and sanitized — never committed (`.local/` is git-ignored).
 - Unrestricted automation sudo is an explicit lab exception, not hardening success.
 - Exposure, resource budgets, retention, and driver routing were checked only
   on the local profile; repeat runtime verification on each target machine.
-- Fresh local material does not revoke previously exposed credentials elsewhere;
-  revocation confirmation and final content/history/package review block release.
+- Fresh local material does not revoke credentials exposed elsewhere; the owner
+  confirmed no real credentials were exposed for this project, and independent
+  reproduction plus the final publication review still block release.
 
 ## Docs
 
 - `docs/demo.md` — exact run order and per-step proof.
+- `docs/runtime-evidence.md` — sanitized signal-path diagram and drill outcomes.
 - `docs/troubleshooting.md` — fail-closed symptoms and fixes.
 - `docs/control-signal-matrix.md` — control → signal → rule → drill → evidence IDs.
 - `docs/adr/` — local exposure, single-node storage, alert routing decisions.

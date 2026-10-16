@@ -9,7 +9,8 @@ the actual Docker-to-Minikube route, resource limits and bounded 503 burn.
 Status: **executed locally on 2026-10-16**. Init, the required static gate,
 monitoring and smoke passed. The instance-down and SSH drills passed; the CPU
 drill failed closed after injection (`cpu-bounded`). Private timelines and audits
-remain under `.local/evidence/` and are not part of the repository. Re-run the
+remain under `.local/evidence/` and are not part of the repository; the
+sanitized summary is [runtime-evidence.md](runtime-evidence.md). Re-run the
 commands below to verify another machine or checkout.
 
 ## Prerequisites
