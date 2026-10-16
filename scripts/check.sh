@@ -145,7 +145,7 @@ if [[ -d .git || -f .git ]]; then
 fi
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   # Config-only: no daemon, expanded values or real credential reads.
-  HIO_METRICS_BIND=localhost docker compose -f ansible/docker-compose.yml config --quiet
+  HIO_METRICS_BIND=127.0.0.1 docker compose -f ansible/docker-compose.yml config --quiet
 elif [[ ${HIO_REQUIRE_TOOLS:-0} == 1 ]]; then
   echo 'FAIL Docker Compose unavailable' >&2; exit 1
 else
