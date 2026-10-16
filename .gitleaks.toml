@@ -1,0 +1,14 @@
+title = "hybrid-infra-observability"
+
+[extend]
+useDefault = true
+
+# init creates these private fixtures locally. scripts/check.sh separately
+# rejects them if tracked, while gitleaks scans distributable files and Git.
+[allowlist]
+paths = [
+  '''(^|/)\.local/''',
+  '''(^|/)ansible/keys/''',
+  '''(^|/)ansible/control-node/\.vault_pass$''',
+  '''(^|/)ansible/control-node/vars/vault\.yml$''',
+]

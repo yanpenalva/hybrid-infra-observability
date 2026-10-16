@@ -15,11 +15,20 @@ root = pathlib.Path('.')
 errors = []
 forbidden = [root/'ansible'/'keys', root/'ansible/control-node'/('.vault'+'_pass'),
              root/'ansible/control-node/vars'/'vault.yml']
+initialized = (root / '.local/init-complete').is_file()
 for path in forbidden:
-    if path.exists():
+    if not initialized and path.exists():
         errors.append('forbidden distribution path: ' + str(path))
+    elif initialized:
+        res = subprocess.run(['git', 'ls-files', '--error-unmatch', str(path)],
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if res.returncode == 0:
+            errors.append('forbidden git-tracked path: ' + str(path))
+init_generated = {root/'ansible/control-node'/('.vault'+'_pass'),
+                  root/'ansible/control-node/vars'/'vault.yml'}
 files = [p for p in root.rglob('*') if p.is_file() and not any(
-    x in p.parts for x in ('.git', '.local', '__pycache__', '.validation'))]
+    x in p.parts for x in ('.git', '.local', '__pycache__', '.validation'))
+    and not (initialized and ('keys' in p.parts or p in init_generated))]
 for path in files:
     text = path.read_text(errors='replace')
     # Do not echo offending content: scanners must never print credentials.

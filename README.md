@@ -19,18 +19,23 @@ not multi-cloud.
 
 Every hardening control maps to an observable signal:
 **control → verification/signal → alert → diagnosis → recovery → verification**.
-That loop is the product under construction — not a claim of completed
-verification. Status: private foundation; runtime reproduction pending.
+That loop is the product under construction. A local Gate 1 + Gate 2 run on
+2026-10-16 passed init, static checks, monitoring and smoke; the instance-down
+and SSH drills passed, while CPU failed closed as `cpu-bounded`. Evidence stays
+private under `.local/evidence/`; see [the test guide](docs/demo.md).
 
 ## Try it
 
 Prerequisites: Linux, Docker Engine + Compose plugin, Minikube (Docker
-driver), kubectl, Python 3 with PyYAML. Create the dedicated profile first —
-init never creates clusters:
+driver), kubectl, Python 3 with PyYAML, and the pinned validators listed in
+`.github/workflows/ci.yml`. Create the dedicated profile first; init never
+creates clusters. Bind metrics to the gateway of this profile's Docker network,
+never to `0.0.0.0`:
 
 ```sh
-minikube start -p hybrid-infra-observability
-export HIO_METRICS_BIND="$(ip -4 -o addr show docker0 | awk '{print $4}' | cut -d/ -f1)"
+minikube start -p hybrid-infra-observability --driver=docker
+export HIO_METRICS_BIND="$(docker inspect hybrid-infra-observability --format '{{(index .NetworkSettings.Networks "hybrid-infra-observability").Gateway}}')"
+kubectl config use-context hybrid-infra-observability
 ```
 
 From the repository root, in order:
@@ -38,10 +43,14 @@ From the repository root, in order:
 ```sh
 make init    # generates Ed25519 pair, Vault passphrase, synthetic fixtures, Grafana secret
 make init    # second run only re-validates; credentials must be byte-identical
-make check   # static gate: YAML/Bash, app unit tests, probes, promtool rules
+HIO_REQUIRE_TOOLS=1 make check  # static gate; missing validators fail
 make up      # ping → node exporter → security_hardening → deploy_ssh_metrics
+make up      # convergence run
 make monitoring   # ClusterIP stack; waits for rollouts + PVC Bound
 make smoke    # runtime gate incl. loopback /chaos 503 burn-rate proof
+bash scripts/drill.sh instance-down
+bash scripts/drill.sh ssh
+bash scripts/drill.sh cpu
 make down     # preserves credentials, cluster, PVC/PV and volumes
 ```
 
@@ -51,14 +60,17 @@ make down     # preserves credentials, cluster, PVC/PV and volumes
 - `make init`: prints paths created under `.local/` and `ansible/keys/`
   (git-ignored), never values. Second run: `already initialized` semantics,
   exit 0, identical bytes.
-- `make check`: `PASS` lines per gate (SKIP only when a pinned tool is
-  absent locally; CI requires all tools).
+- `make check`: 7 app unit tests, collector/audit self-tests, Ansible syntax,
+  YAML/lint, schema, Prometheus/Alertmanager and secret scans. With
+  `HIO_REQUIRE_TOOLS=1`, missing validators fail instead of SKIP.
 - `make up`: four playbooks green in order; `ssh_metrics` RUNNING on both
   nodes; exporters scraping.
 - `make monitoring`: three rollouts `successfully rolled out`,
   `pvc/prometheus-data` `Bound`.
 - `make smoke`: 5xx counter +90, short-window burn alert fires, overlay
   removed on exit even on failure.
+- Drills: each writes a private timeline and audit evidence. CPU may end at
+  `cpu-bounded` without changing the canonical alert threshold.
 - `make down`: stack removed; `.local/` credentials untouched.
 
 </details>
@@ -81,7 +93,8 @@ UIs are ClusterIP-only; reach them via loopback port-forwards, e.g.
 
 ## Drills
 
-One at a time; each writes its own evidence directory (see below).
+Run before `make down`, one at a time; each writes its own evidence directory
+(see below).
 `blackhole` receipt is asserted via `/api/v2/alerts/groups` — receipt,
 never delivery.
 
@@ -104,7 +117,8 @@ and sanitized — never committed (`.local/` is git-ignored).
 - `app`/`db` are teaching nodes; no business application or real database.
 - No provisioned dashboard, no external alert delivery; Alertmanager is stateless.
 - Unrestricted automation sudo is an explicit lab exception, not hardening success.
-- Exposure, resource budgets, retention, and driver routing need runtime verification.
+- Exposure, resource budgets, retention, and driver routing were checked only
+  on the local profile; repeat runtime verification on each target machine.
 - Fresh local material does not revoke previously exposed credentials elsewhere;
   revocation confirmation and final content/history/package review block release.
 

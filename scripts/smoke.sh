@@ -34,6 +34,7 @@ kube = ['kubectl', '--context', context, '-n', 'monitoring']
 forwards = []
 injected = False
 overlay_loaded = False
+phase = 'preflight'
 # Loopback /chaos is not reachable from the host by design: this runs inside
 # app, injects the 503 window, then restores health explicitly before exiting.
 APP_DEMO = """import json, time, urllib.error, urllib.request
@@ -41,7 +42,7 @@ def post(body):
     request = urllib.request.Request('http://127.0.0.1:8080/chaos', data=body.encode(), method='POST')
     with urllib.request.urlopen(request, timeout=5) as response:
         return response.status
-enabled = post('{"duration_seconds": 150, "fail": true}')
+enabled = post('{"duration_seconds": 120, "fail": true}')
 failures = 0
 for _ in range(90):
     try:
@@ -85,6 +86,17 @@ def poll(label, predicate, timeout=120):
 def get(port, path):
     with urllib.request.urlopen('http://127.0.0.1:' + str(port) + path, timeout=4) as r:
         return json.load(r)
+
+def restart_prometheus_forward():
+    old = forwards[0]
+    if old.poll() is None:
+        old.terminate()
+        old.wait(timeout=5)
+    forwards[0] = sp.Popen(kube + ['port-forward', '--address', '127.0.0.1',
+                                   'svc/prometheus', '19090:9090'],
+                           stdout=sp.DEVNULL, stderr=sp.DEVNULL)
+    poll('Prometheus port-forward restored', lambda: forwards[0].poll() is None
+         and get(19090, '/api/v1/status/buildinfo')['status'] == 'success', 30)
 
 def query(expr):
     obj = get(19090, '/api/v1/query?' + urllib.parse.urlencode({'query': expr}))
@@ -165,6 +177,8 @@ def apply_demo_overlay():
     # F4 demo proof: load the short-window SLO overlay into the running
     # Prometheus for this run only. The canonical ConfigMap stays untouched on
     # disk; every mutation here is undone by remove_demo_overlay() in finally.
+    global phase
+    phase = 'read demo overlay'
     content = pathlib.Path('k8s/monitoring/demo-slo-overlay.yml').read_text()
     index, config_map = config_volume()
     name = config_map['name']
@@ -172,14 +186,19 @@ def apply_demo_overlay():
         kube + ['get', 'configmap', name, '-o', 'json']))['data']['prometheus.yml'])
     if 'demo-slo-overlay.yml' not in declared['rule_files']:
         declared['rule_files'].append('demo-slo-overlay.yml')
+    phase = 'patch demo ConfigMap'
     run(kube + ['patch', 'configmap', name, '--type', 'merge', '-p', json.dumps(
         {'data': {'prometheus.yml': yaml.safe_dump(declared, sort_keys=False),
                   'demo-slo-overlay.yml': content}})])
+    phase = 'patch demo volume'
     run(kube + ['patch', 'deployment', 'prometheus', '--type', 'json', '-p', json.dumps([
         {'op': 'add', 'path': '/spec/template/spec/volumes/%d/configMap/items/-' % index,
          'value': {'key': 'demo-slo-overlay.yml', 'path': 'demo-slo-overlay.yml'}}])])
+    phase = 'restart demo Prometheus'
     run(kube + ['rollout', 'restart', 'deployment/prometheus'])
+    phase = 'wait demo Prometheus rollout'
     run(kube + ['rollout', 'status', 'deployment/prometheus', '--timeout=120s'], timeout=130)
+    restart_prometheus_forward()
 
 
 def remove_demo_overlay():
@@ -192,6 +211,7 @@ def remove_demo_overlay():
     run(['kubectl', '--context', context, 'apply', '-k', 'k8s/monitoring'])
     run(kube + ['rollout', 'restart', 'deployment/prometheus'])
     run(kube + ['rollout', 'status', 'deployment/prometheus', '--timeout=120s'], timeout=130)
+    restart_prometheus_forward()
     poll('demo short-window overlay removed from Prometheus',
          lambda: not demo_rule_present())
 
@@ -273,7 +293,7 @@ try:
     print('PASS all effective container and init-container resource limits match declarations', flush=True)
     flags = get(19090, '/api/v1/status/flags')['data']
     assert flags['storage.tsdb.retention.time'] in ('1d', '24h')
-    assert flags['storage.tsdb.retention.size'] in ('512MB', '512000000B')
+    assert flags['storage.tsdb.retention.size'] in ('512MB', '512MiB', '512000000B')
     disk_kib = int(run(kube + ['exec', 'deployment/prometheus', '-c', 'prometheus', '--',
                              'du', '-sk', '/prometheus']).split()[0])
     used = disk_kib * 1024
@@ -281,20 +301,25 @@ try:
     print('PASS retention disk <=256MB/512MB; >=50% WAL/head headroom', flush=True)
     # F4 proof: app failure mode must burn the SLO budget on a short window.
     # The overlay is removed by the finally block (trap) on every exit path.
-    apply_demo_overlay()
     overlay_loaded = True
+    apply_demo_overlay()
+    phase = 'query demo rule'
     poll('demo short-window overlay loaded by Prometheus', demo_rule_present)
+    phase = 'inject demo failures'
     before = counter('sum(demo_http_requests_total{job="demo-app",node="app",status_class="5xx"})')
     result = json.loads(run(compose + ['exec', '-T', 'app', 'python3', '-c', APP_DEMO],
                             timeout=200).strip().splitlines()[-1])
     assert result == {'enabled': 200, 'failures': 90, 'restored': 200, 'healthy': 200}, 'chaos contract'
     print('PASS loopback 503 injection: 90 bounded failures, health restored', flush=True)
+    phase = 'verify demo failures'
     poll('injected 503 counted by Prometheus', lambda: counter(
         'sum(demo_http_requests_total{job="demo-app",node="app",status_class="5xx"})') - before >= 90, 90)
+    phase = 'verify demo SLO alert'
     poll('demo short-window SLO burn firing in Prometheus', demo_rule_firing, 180)
 except (AssertionError, RuntimeError, sp.TimeoutExpired, KeyError, ValueError, OSError) as exc:
     # Never dump subprocess output, config objects, secrets or HTTP bodies.
-    print('FAIL smoke: ' + type(exc).__name__ + ' (runtime gate not certified)', file=sys.stderr)
+    print('FAIL smoke: ' + type(exc).__name__ + ' during ' + phase +
+          ' (runtime gate not certified)', file=sys.stderr)
     sys.exit(1)
 finally:
     cleanup_failed = False

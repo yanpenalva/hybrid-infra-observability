@@ -1,6 +1,8 @@
 # Control → signal → rule → drill → evidence
 
-State: static implementation; **no certified runtime evidence**.
+State: local Gate 1 + Gate 2 execution on 2026-10-16 passed, with private
+evidence under `.local/evidence/`. Instance-down and SSH drills passed; CPU
+failed closed as `cpu-bounded`. These local files are not committed evidence.
 The IDs below are the literals produced by `ansible/control-node/ssh_metrics/audit.py`.
 `pass`, `fail`, `error` and `exception` are distinct states. Absence is never PASS.
 
@@ -87,7 +89,7 @@ was rescoped to the controls that the disposable baseline actually implements.
 - The only accepted `exception` state is `sudo_exception`. `scripts/drill.sh`
   requires `pass` on the other controls in both the baseline and the recovery audit.
 
-## Gates not yet proven / partition boundaries
+## Remaining boundaries
 
 The probe covers only the controls listed above and never fabricates compliance:
 an absent series is absence, not PASS. Changes to the baseline, app, compose, smoke,
@@ -95,16 +97,18 @@ CI and Kubernetes wiring belong to other builders.
 CPU is not automatically a cgroup metric: without a safe real crossing of the rule
 the drill fails; it adds no workers and does not lower the canonical threshold. The
 F4 CPU rule is expected before the drill; its name is not invented in this matrix.
-The short SLO overlay and the 503 injection step in `scripts/smoke.sh` are
-implemented and validated by promtool, but still run without certified execution:
-no runtime measurement was fabricated.
+The short SLO overlay and the 503 injection step in `scripts/smoke.sh` were
+validated by promtool and passed in the local runtime smoke: 90 503 responses,
+the 5xx counter and `DemoSLOBurnRateShortWindow` firing were observed; the
+overlay was removed afterward. This run does not establish production behavior.
 
 Known_hosts/host checking are configured in `ansible/control-node/ansible.cfg`; the
 SSH drill uses strict verification and requires a publickey rejection (a diverging
 host key does not count). Host key negative testing, secret sentinels, actual
-rotation, absent series, drill interruption, positive/negative network policy,
-retention and effective resources need integrated execution. They are not replaced
-by file-existence checks.
+rotation, absent series, drill interruption and positive/negative network policy
+need targeted execution. The local smoke covered retention and effective
+resources on one profile; file-existence checks cannot replace those runtime
+checks on another machine.
 `scripts/check.sh` validates YAML, Bash, hygiene, the unit tests of `ansible/app`,
 both `--self-test` runs (`collector.py`, `audit.py`) and the three promtool test
 files (canonical, SSH and demo-overlay rules).
