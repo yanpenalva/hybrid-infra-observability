@@ -23,9 +23,10 @@ targets; `scripts/drill.sh` also validates the driver and the F1 `/health`
 endpoint on the `app` node. A positive test from a Pod and a negative test from a
 forbidden origin are runtime gates, not proven by manifest analysis. On
 2026-10-16 the local Gate 2 smoke exercised the positive Pod-to-exporter path.
-The negative-origin test executed the same day passed the all-interface check
-(the bind listens only on the profile-network gateway; the host LAN address
-refuses) but failed on source restriction: foreign Docker networks on this host
-reach the published ports. Restricted exposure therefore stays pending and
-publication stays blocked until the firewall admits only Minikube sources and
-the test passes.
+The negative-origin test passed the same day once the host firewall was
+restricted to Minikube sources (INPUT rule for the proxy path plus a
+DOCKER-USER rule on the post-DNAT ports): the bind listens only on the
+profile-network gateway, the host LAN address refuses, foreign Docker networks
+time out and the Minikube node keeps reaching all three ports. Repeat both
+tests on every host; restricted exposure remains a local result, not a global
+guarantee.

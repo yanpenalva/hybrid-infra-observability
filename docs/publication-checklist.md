@@ -23,16 +23,17 @@ Status: blocked for publication. A local Gate 1 + Gate 2 run passed on
 - **Metrics route (positive):** Gate 2 exercised the Docker-to-Minikube path
   (`baseline targets UP`).
 - **Metrics route (negative):** executed 2026-10-16 with private evidence in
-  `.local/evidence/route-negative-20261016.json`. The bind listens only on the
-  profile-network gateway (the host LAN address refuses on all three ports), but
-  foreign Docker networks on this host reach the published ports — the required
-  firewall restriction to Minikube is **not** in place. This gate currently
-  fails.
+  `.local/evidence/route-negative-20261016.json` and
+  `route-negative-20261016-retest.json`. The first run failed (foreign Docker
+  networks reached the published ports). After the host firewall was restricted
+  to Minikube sources, the re-test passed: the bind listens only on the
+  profile-network gateway, the host LAN address refuses, foreign Docker
+  networks time out, the Minikube node still reaches all three ports and
+  Prometheus targets stay `up`. Persisting the firewall rule across reboots
+  (netfilter-persistent or equivalent) is still pending.
 
 ## Remaining release gates
 
-- Restrict the metrics bind sources to Minikube (host firewall) and re-run the
-  negative-origin route test (ADR 0001) until it passes.
 - Independent reproduction on another host or profile.
 - Final content/history/package scan re-run at the publication commit.
 - Owner authorization.
