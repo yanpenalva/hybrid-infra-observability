@@ -72,7 +72,8 @@ whose default Python is 3.14, create the validator venv with Python 3.11.
    it must print `RUNNING`. The second run checks convergence.
 4. `make monitoring` — applies the ClusterIP stack (namespace, Prometheus,
    Grafana, Alertmanager), waits for three rollouts and requires
-   `pvc/prometheus-data` to be `Bound`.
+   `pvc/prometheus-data` to be `Bound`. Grafana loads the provisioned
+   `Hybrid infra observability` dashboard from `k8s/monitoring/05-grafana-dashboards.yaml`.
 5. `make smoke` — Gate 2 on the live stack. It checks both targets UP, alert
    firing and recovery for a stopped exporter, effective resource limits and
    Prometheus retention disk use at most 256 MB of the 512 MB budget. It also

@@ -20,6 +20,8 @@ operator-owned host configuration that must be persisted across reboots.
   `control-node` mounts playbooks read-only.
 - Kubernetes (`hybrid-infra-observability`, dedicated Minikube profile/context): Prometheus,
   Grafana and Alertmanager are ClusterIP-only; operator access is loopback-only port-forward.
+  Grafana serves the provisioned dashboard and anonymous Viewer to that loopback UI; the
+  admin credential remains for editing.
 - Metrics route: one bridge bind (`HIO_METRICS_BIND`), never all-interface.
   `scripts/firewall.sh apply` restricts the published ports to the Minikube
   subnet on the proxy (INPUT) and DNAT (DOCKER-USER) paths, and

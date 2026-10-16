@@ -7,6 +7,7 @@ resources:
   - 02-prometheus.yaml
   - 03-grafana.yaml
   - 04-alertmanager.yaml
+  - 05-grafana-dashboards.yaml
 configMapGenerator:
   - name: prometheus-config
     files: [prometheus.yml, alert-rules.yml, alert-rules-ssh.yml]

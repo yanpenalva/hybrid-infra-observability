@@ -206,15 +206,19 @@ try:
         run(kube + ['rollout', 'status', 'deployment/' + name, '--timeout=120s'], timeout=130)
     services = json.loads(run(kube + ['get', 'svc', '-o', 'json']))['items']
     assert all(s['spec']['type'] == 'ClusterIP' for s in services)
-    for svc, local, remote in [('prometheus', 19090, 9090), ('alertmanager', 19093, 9093)]:
+    for svc, local, remote in [('prometheus', 19090, 9090), ('alertmanager', 19093, 9093),
+                               ('grafana', 13000, 3000)]:
         p = sp.Popen(kube + ['port-forward', '--address', '127.0.0.1', 'svc/' + svc,
                             str(local) + ':' + str(remote)], stdout=sp.DEVNULL, stderr=sp.DEVNULL)
         forwards.append(p)
     time.sleep(2)
     poll('port-forwards owned by smoke', lambda: all(p.poll() is None for p in forwards)
          and get(19090, '/api/v1/status/buildinfo')['status'] == 'success'
-         and bool(get(19093, '/api/v2/status')))
+         and bool(get(19093, '/api/v2/status'))
+         and get(13000, '/api/health')['database'] == 'ok')
     assert all(p.poll() is None for p in forwards), 'port collision or forwarding failed'
+    poll('grafana serves the provisioned dashboard', lambda: any(
+        d.get('title') == 'Hybrid infra observability' for d in get(13000, '/api/search?type=dash-db')))
     run(compose + ['exec', '-T', 'control-node', 'ansible-playbook', 'playbooks/ping.yml'])
     poll('baseline targets UP', up)
     poll('baseline no old app alert', lambda: not alerts_prom() and not alerts_am())

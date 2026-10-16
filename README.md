@@ -126,7 +126,8 @@ and sanitized — never committed (`.local/` is git-ignored).
 
 - No production readiness, HA, backup, multi-cloud, compliance, or proven SLO.
 - `app`/`db` are teaching nodes; no business application or real database.
-- No provisioned dashboard, no external alert delivery; Alertmanager is stateless.
+- No external alert delivery; Alertmanager is stateless. Grafana serves a
+  provisioned dashboard and anonymous Viewer on the loopback-forwarded UI.
 - Unrestricted automation sudo is an explicit lab exception, not hardening success.
 - Exposure, resource budgets, retention, and driver routing were checked only
   on the local profile: the metrics bind is source-restricted to Minikube by

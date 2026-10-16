@@ -1,0 +1,128 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provisioning
+  namespace: monitoring
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: hio
+        orgId: 1
+        folder: ""
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 30
+        allowUiUpdates: false
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: monitoring
+data:
+  hybrid-infra.json: |
+    {
+      "uid": "hio-lab",
+      "title": "Hybrid infra observability",
+      "tags": ["hio"],
+      "timezone": "utc",
+      "schemaVersion": 39,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-3h", "to": "now"},
+      "editable": false,
+      "panels": [
+        {
+          "id": 1, "type": "stat", "title": "Targets up",
+          "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "up{job=~\"managed-nodes|demo-app\"}", "legendFormat": "{{job}} {{node}}"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}
+        },
+        {
+          "id": 2, "type": "stat", "title": "Firing alerts",
+          "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "sum(ALERTS{alertstate=\"firing\", alertname!=\"\"})", "legendFormat": "firing"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto"},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 1}]}}, "overrides": []}
+        },
+        {
+          "id": 3, "type": "stat", "title": "SSH collector freshness (s)",
+          "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "time() - max(lab_ssh_collector_timestamp_seconds{job=\"managed-nodes\"})", "legendFormat": "age"}],
+          "options": {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "value", "graphMode": "none", "textMode": "auto"},
+          "fieldConfig": {"defaults": {"unit": "s", "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 30}, {"color": "red", "value": 45}]}}, "overrides": []}
+        },
+        {
+          "id": 4, "type": "table", "title": "Hardening controls",
+          "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "min by (control) (lab_hardening_control_pass{job=\"managed-nodes\"})", "format": "table", "instant": true}],
+          "options": {"showHeader": true},
+          "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}}, "overrides": []}
+        },
+        {
+          "id": 5, "type": "timeseries", "title": "Node CPU %",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "100 * (1 - avg by (node) (rate(node_cpu_seconds_total{job=\"managed-nodes\",mode=\"idle\"}[5m])))", "legendFormat": "{{node}}"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "orange", "value": 60}, {"color": "red", "value": 80}]}}, "overrides": []}
+        },
+        {
+          "id": 6, "type": "timeseries", "title": "Node memory used %",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"managed-nodes\"} / node_memory_MemTotal_bytes{job=\"managed-nodes\"})", "legendFormat": "{{node}}"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "percent", "min": 0, "max": 100}, "overrides": []}
+        },
+        {
+          "id": 7, "type": "timeseries", "title": "SSH rejected attempts/s",
+          "gridPos": {"h": 8, "w": 8, "x": 0, "y": 13},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "sum by (node) (rate(lab_ssh_auth_failures_total{job=\"managed-nodes\"}[5m]))", "legendFormat": "{{node}}"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+        },
+        {
+          "id": 8, "type": "timeseries", "title": "App request rate/s",
+          "gridPos": {"h": 8, "w": 8, "x": 8, "y": 13},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "sum by (node) (rate(demo_http_requests_total{job=\"demo-app\"}[5m]))", "legendFormat": "{{node}}"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []}
+        },
+        {
+          "id": 9, "type": "timeseries", "title": "App 5xx ratio %",
+          "gridPos": {"h": 8, "w": 8, "x": 16, "y": 13},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "100 * sum(rate(demo_http_requests_total{job=\"demo-app\",status_class=\"5xx\"}[5m])) / sum(rate(demo_http_requests_total{job=\"demo-app\"}[5m]))", "legendFormat": "5xx"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "percent", "min": 0}, "overrides": []}
+        },
+        {
+          "id": 10, "type": "timeseries", "title": "App p95 latency (s)",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "histogram_quantile(0.95, sum by (le) (rate(demo_http_request_duration_seconds_bucket{job=\"demo-app\",route=\"/health\"}[5m])))", "legendFormat": "p95"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+        },
+        {
+          "id": 11, "type": "timeseries", "title": "Prometheus TSDB storage (MiB)",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
+          "datasource": {"type": "prometheus", "uid": "prometheus"},
+          "targets": [{"refId": "A", "expr": "prometheus_tsdb_storage_blocks_bytes / 1024 / 1024", "legendFormat": "blocks"}],
+          "options": {"legend": {"displayMode": "list", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+          "fieldConfig": {"defaults": {"unit": "MiB"}, "overrides": []}
+        }
+      ]
+    }
