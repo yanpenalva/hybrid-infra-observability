@@ -114,9 +114,10 @@ HIO_METRICS_BIND=127.0.0.1 docker compose -f ansible/docker-compose.yml config -
 
 ## Dependabot
 
-`.github/dependabot.yml` opens weekly grouped updates for GitHub Actions and for
-each Dockerfile directory. A Docker update raises the tag or the digest of one
-Dockerfile, so it does not perform step 2 of the bump order by itself: apply the
-same tag and digest to all three Dockerfiles, keep the Kubernetes manifests
-consistent, and run the gates before merging. The Kubernetes images have no
-Dependabot coverage and are re-checked with the commands above.
+`.github/dependabot.yml` opens weekly grouped updates for GitHub Actions, and a
+single grouped Docker update that covers the three Dockerfile directories. A
+Docker update therefore raises the tag or the digest of `app`, `db` and
+`control-node` in one pull request, which applies step 2 of the bump order as a
+single change: keep the Kubernetes manifests consistent and run the gates before
+merging. The Kubernetes images have no Dependabot coverage and are re-checked
+with the commands above.

@@ -16,33 +16,13 @@ updates:
     commit-message:
       prefix: ci
   - package-ecosystem: docker
-    directory: /ansible/app
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Etc/UTC
-    open-pull-requests-limit: 1
-    groups:
-      docker-base-images:
-        patterns: ["*"]
-    commit-message:
-      prefix: ci
-  - package-ecosystem: docker
-    directory: /ansible/db
-    schedule:
-      interval: weekly
-      day: monday
-      time: "06:00"
-      timezone: Etc/UTC
-    open-pull-requests-limit: 1
-    groups:
-      docker-base-images:
-        patterns: ["*"]
-    commit-message:
-      prefix: ci
-  - package-ecosystem: docker
-    directory: /ansible/control-node
+    # One entry for the three Dockerfiles that share debian:bookworm-slim, so a
+    # base-image bump lands as a single pull request instead of three unrelated
+    # ones, which is step 2 of the bump order in docs/image-bump.md.
+    directories:
+      - /ansible/app
+      - /ansible/db
+      - /ansible/control-node
     schedule:
       interval: weekly
       day: monday
